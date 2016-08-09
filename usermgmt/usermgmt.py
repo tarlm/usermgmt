@@ -5,12 +5,24 @@ from sys import exit
 
 # this User object will be used in optimisation ==> second stepp
 class User(object):
+    def __init__(self, id_gaia, nom, prenom, email, status):
+        self.id_gaia = id_gaia
+        self.nom = nom
+        self.prenom = prenom
+        self.email = email
+        self.status = status
+
+    def __init__(self, id_gaia, nom, prenom, email):
+        self.init(id_gaia=id_gaia, nom=nom, prenom=prenom, email=email, status="inactive")
+    
     def __init__(self):
-        self.id_gaia = "anonyme"
-        self.nom = "anonyme"
-        self.prenom = "anonyme"
-        self.email = "anonyme@example.com"
-        self.status = "active"
+        self.init(id_gaia="anonyme", nom="anonyme", prenom="anonyme", email="anonyme@example.com", status="inactive")
+
+
+
+    # check if current user has same gaia as the user in parameter
+    def is_same_gaia(self, user):
+        return self.id_gaia.upper() == user.id_gaia.upper()
 
     # return TRUE if both users attributs are equals and false if not
     def equal(self, user):
