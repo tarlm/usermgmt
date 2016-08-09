@@ -1,5 +1,5 @@
 from nose.tools import *
-import usermgmt
+
 
 def setup():
     print "SETUP!"
