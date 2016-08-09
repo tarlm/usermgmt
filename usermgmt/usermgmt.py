@@ -12,8 +12,9 @@ class User(object):
         self.email = "anonyme@example.com"
         self.status = "active"
 
+    # return TRUE if both users attributs are equals and false if not
     def equal(self, user):
-        pass
+        return (self.id_gaia.upper()==user.id_gaia.upper()) & (self.nom.upper()==user.nom.upper()) & (self.prenom.upper()==user.prenom.upper()) & (self.email.upper()==user.email.upper())
 
 
 # Description: build a dictionary contains the nit ad user from csv
