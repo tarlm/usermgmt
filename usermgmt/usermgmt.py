@@ -1,24 +1,19 @@
 # -*- coding:utf-8 -*-
 import csv
+import re
 from sys import exit
 
+EMAIL_REGEX = re.compile("^([^@][A-Za-z]{1,})+@[^@]+(grdf\.fr)$") # use http://pythex.org/ to validate the regex first
 
 # this User object will be used in optimisation ==> second stepp
 class User(object):
-    def __init__(self, id_gaia, nom, prenom, email, status):
+    def __init__(self, id_gaia="anonyme", nom="anonyme", prenom="anonyme", email="anonyme@example.com",
+                 status="inactive"):
         self.id_gaia = id_gaia
         self.nom = nom
         self.prenom = prenom
         self.email = email
         self.status = status
-
-    def __init__(self, id_gaia, nom, prenom, email):
-        self.init(id_gaia=id_gaia, nom=nom, prenom=prenom, email=email, status="inactive")
-    
-    def __init__(self):
-        self.init(id_gaia="anonyme", nom="anonyme", prenom="anonyme", email="anonyme@example.com", status="inactive")
-
-
 
     # check if current user has same gaia as the user in parameter
     def is_same_gaia(self, user):
@@ -26,19 +21,19 @@ class User(object):
 
     # return TRUE if both users attributs are equals and false if not
     def equal(self, user):
-        return (self.id_gaia.upper()==user.id_gaia.upper()) & (self.nom.upper()==user.nom.upper()) & (self.prenom.upper()==user.prenom.upper()) & (self.email.upper()==user.email.upper())
+        return (self.id_gaia.upper() == user.id_gaia.upper()) & (self.nom.upper() == user.nom.upper()) & (
+            self.prenom.upper() == user.prenom.upper()) & (self.email.upper() == user.email.upper())
 
 
 # Description: build a dictionary contains the nit ad user from csv
 # Key: the gaia id of the user
 # Value: a list contains in order, id_gaia, nom, prenom, email
 def build_ad_nit(csv_nit_path, fieldnames):
-    # local_ad_nit = {}
     with open(csv_nit_path, 'rb') as nit_csv_file:
         nit_reader = csv.DictReader(nit_csv_file, fieldnames=fieldnames, delimiter=';', dialect='excel')
         next(nit_reader)  # skip header row
-        local_ad_nit = {row[fieldnames[0]]: [row[fieldnames[0]], row[fieldnames[1]], row[fieldnames[2]]] for row in
-                        nit_reader}
+        local_ad_nit = {row['id_gaia']: User(row['id_gaia'], nom=row['nom'], email=row['email'], status="active") for
+                        row in nit_reader}
 
     return local_ad_nit
 
@@ -64,7 +59,7 @@ def build_ad_gaia(csv_gaia_path, fieldnames, dr_elec):
                 user_dr_elec_nbre += 1
                 continue
 
-            local_ad_gaia[row['id_gaia']] = [row['id_gaia'], row['prenom'], row['nom'], row['email']]
+            local_ad_gaia[row['id_gaia']] = User(id_gaia=row['id_gaia'], prenom=row['prenom'], nom=row['nom'], email=row['email'])
 
     print 'There are %s users from DR ELEC' % user_dr_elec_nbre
 
@@ -72,6 +67,12 @@ def build_ad_gaia(csv_gaia_path, fieldnames, dr_elec):
 
 
 def process(ad_nit, ad_gaia):
+
+
+
+
+
+
     pass
 
 
@@ -91,8 +92,8 @@ if __name__ == "__main__":
     ad_nit_csv = '../resources/Export_AD_04072016.csv'
     ad_nit = build_ad_nit(ad_nit_csv, fieldnames=nitFieldnames)
     print "la taille de l'AD NIT est %s" % len(ad_nit)
-    print "l'utilisateur d'id gaia: %s, de nom: %s et d'email: %s" % (
-        ad_nit['VV5193'][0], ad_nit['VV5193'][1], ad_nit['VV5193'][2])
+    print "l'utilisateur d'id gaia: %s, de nom: %s et d'email: %s" % \
+          (ad_nit['VV5193'].id_gaia, ad_nit['VV5193'].nom, ad_nit['VV5193'].email)
 
     # build ad gaia dictionary
     ad_gaia_csv = '../resources/20160701_074608_TB5_GAIA_2016_0630.csv'
