@@ -3,7 +3,6 @@ import csv, re, inspect, logging, codecs, cStringIO
 
 from sys import exit
 
-
 ############ Known python tooltip classes for handling unicode #####
 
 class UTF8Recoder:
@@ -163,6 +162,7 @@ def build_ad_nit(csv_nit_path, fieldnames):
     local_ad_nit = {}
     with open(csv_nit_path, 'rb') as nit_csv_file:
         nit_reader = csv.DictReader(nit_csv_file, fieldnames=fieldnames, delimiter=';', dialect='excel')
+
         try:
             next(nit_reader)  # skip header row
             for row in nit_reader:
