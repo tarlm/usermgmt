@@ -6,7 +6,87 @@ import re
 from sys import exit
 
 
-############ Known python tooltip classes for handling unicode #####
+class User(object):
+    """
+    This User object is used to hold a user identity. This model is easy for data manipulation
+    """
+
+    def __init__(self, id_gaia=u'ANONYME', nom=u'ANONYME', prenom=u'Anonyme', email=u'anonyme@example.com',
+                 status=u'Inactivé'):
+        """
+        :param id_gaia: the gaia id of the corresponding user
+        :param nom: the family name of the current user
+        :param prenom: the first name of the current user
+        :param email:
+        :param status:
+        :return:
+        """
+        self.id_gaia = id_gaia
+        self.nom = nom
+        self.prenom = prenom
+        self.email = email
+        self.status = status
+
+    @staticmethod
+    def string_equal(a, b):
+        try:
+            return a.upper() == b.upper()
+        except AttributeError:
+            return a == b
+
+    def is_same_gaia(self, user):
+
+        #  check if current user has same gaia as the user in parameter
+        return self.string_equal(self.id_gaia, user.id_gaia)
+
+    def is_active(self):
+        """ check if current user is active
+        :return: True if user is active and False if not
+        """
+        if self.status in (u'Activé', u'A initialiser', u'Active', u'Verrouillé'):
+            return True
+        else:
+            return False
+
+    def equal(self, user):
+        """ Compare current user to another from param
+        :param user: user to compare the current user with
+        :return: TRUE if both users attributes(gaia, nom, prenom, email) are equals and false if not
+        """
+        return self.string_equal(self.id_gaia, user.id_gaia) & self.string_equal(self.nom,
+                                                                                 user.nom) & self.string_equal(
+            self.prenom, user.prenom) & self.string_equal(self.email, user.email)
+
+    def normalize(self):
+        """ function use to normalize user if wanted
+        :return: None
+        """
+        # normalize nom
+        if self.nom:
+            self.nom = self.nom.upper()
+        else:
+            self.nom = u'anonyme'.upper()
+
+        # normalize prenom
+        if self.prenom:
+            self.prenom = self.prenom.capitalize()
+        else:
+            self.prenom = u'anonyme'.capitalize()
+
+        # normalize email
+        if not self.email:
+            self.email = u'anonyme@example.com'
+
+        # normalize status
+        if self.status:
+            self.status = self.status.capitalize()
+        else:
+            self.status = u'inactivé'.capitalize()
+
+    def __str__(self):
+        return "I'm %s %s with GAIA: %s, email: %s and Status: %s" % (
+            self.prenom, self.nom, self.id_gaia, self.email, self.status)
+
 
 class UTF8Recoder:
     """
@@ -77,92 +157,8 @@ class UnicodeDictWriter:
             self.writerow(row)
 
 
-############ EOF: Known python tooltip classes for handling unicode #####
-
-
-EMAIL_REGEX = re.compile("^[A-Za-z].*@.*((grdf|erdf-grdf)\.fr)$")  # use http://pythex.org/ to validate the regex first
-
-
-class User(object):
-    """
-    This User object is used to hold a user identity. This model is easy for data manipulation
-    """
-
-    def __init__(self, id_gaia=u'ANONYME', nom=u'ANONYME', prenom=u'Anonyme', email=u'anonyme@example.com',
-                 status=u'Inactivé'):
-        """
-        :param id_gaia: the gaia id of the corresponding user
-        :param nom: the family name of the current user
-        :param prenom: the firstname of the current user
-        :param email:
-        :param status:
-        :return:
-        """
-        self.id_gaia = id_gaia
-        self.nom = nom
-        self.prenom = prenom
-        self.email = email
-        self.status = status
-
-    @staticmethod
-    def string_equal(a, b):
-        try:
-            return a.upper() == b.upper()
-        except AttributeError:
-            return a == b
-
-    def is_same_gaia(self, user):
-
-        #  check if current user has same gaia as the user in parameter
-        return self.string_equal(self.id_gaia, user.id_gaia)
-
-    def is_active(self):
-        """ check if current user is active
-        :return: True if user is active and False if not
-        """
-        if self.status in (u'Activé', u'A initialiser', u'Active', u'Verrouillé'):
-            return True
-        else:
-            return False
-
-    def equal(self, user):
-        """ Compare current user to another from param
-        :param user: user to compare the current user with
-        :return: TRUE if both users attributes(gaia, nom, prenom, email) are equals and false if not
-        """
-        return self.string_equal(self.id_gaia, user.id_gaia) & self.string_equal(self.nom,
-                                                                                 user.nom) & self.string_equal(
-            self.prenom, user.prenom) & self.string_equal(self.email, user.email)
-
-    def normalize(self):
-        """ function use to normalize user if wanted
-        :return: None
-        """
-        # normalize nom
-        if self.nom:
-            self.nom = self.nom.upper()
-        else:
-            self.nom = u'anonyme'.upper()
-
-        # normalize prenom
-        if self.prenom:
-            self.prenom = self.prenom.capitalize()
-        else:
-            self.prenom = u'anonyme'.capitalize()
-
-        # normalize email
-        if not self.email:
-            self.email = u'anonyme@example.com'
-
-        # normalize status
-        if self.status:
-            self.status = self.status.capitalize()
-        else:
-            self.status = u'inactivé'.capitalize()
-
-    def __str__(self):
-        return "I'm %s with GAIA: %s, email: %s and Status: %s" % (
-            self.prenom + " " + self.nom, self.id_gaia, self.email, self.status)
+# use http://pythex.org/ to validate the regex first
+EMAIL_REGEX = re.compile("^[A-Za-z].*@.*((grdf|erdf-grdf)\.fr)$")
 
 
 # TODO: load the config file from conf folder and build config object
@@ -248,76 +244,94 @@ def build_ad_gaia(csv_gaia_path, dr_elec):
 
     return local_ad_gaia
 
-# TODO: Complete the method for creating csv for AD update
-def createCsvFile(userList, fieldsnames, outputFileName):
+
+def create_csv_file(user_list, fieldsnames, output_filename):
     """ Method use to create csv files
-    :param userList: a list of user's object for creation, deletion and update
-    :param outputFileName: the file in which write users
+    :param user_list: a list of user's object for creation, deletion and update
+    :param fieldsnames:
+    :param output_filename: the file in which write users
     :return: None
     """
-    with open(outputFileName, 'wb') as csv_file_out:
-        writer = csv.writer(csv_file_out)
+    with open(output_filename, 'wb') as csv_file_out:
+
+        csv_writer = UnicodeDictWriter(csv_file_out, fieldnames=fieldsnames, delimiter=';', dialect=csv.excel,
+                                       encoding="utf-8")
+
         try:
-            print 'working'
+            csv_writer.writeheader()  # write the csv header
+
+            for user in user_list:
+                # fieldnames = ['id_gaia', 'nom', 'prenom', 'email']
+                # return dict((self.header[x], vals[x]) for x in range(len(self.header)))
+                row_dict = dict((field, user.__getattribute__(field)) for field in fieldsnames)
+                csv_writer.writerow(row_dict)
 
         except csv.Error as cwe:
-            print 'Can not write the file %s, line %d: %s' % (outputFileName, writer.line_num, cwe)
+            print 'Can not write the file %s, line %d: %s' % (output_filename, csv_writer.writer.line_num, cwe)
 
 
-def build_user_to_be_deleted(ad_nit, ad_gaia, users_except_dict):
+def build_user_to_be_deleted(ad_nit_dist, ad_gaia_dict, exception_users_dict):
     """ Build User to be remove from application source AD base on the following criteria
     1- User existe dans AD NIT et pas dans AD GAIA and not exist in exception list==> To be deleted
     2- User existe dans AD NIT et dans AD GAIA avec statut gaia "Désactivé" ou "N/A" ==> To be deleted
-    :param ad_nit:
-    :param ad_gaia:
-    :param users_except_dict:  exception user dictionary
+    :param ad_nit_dist:
+    :param ad_gaia_dict:
+    :param exception_users_dict:  exception user dictionary
     :return:
     """
     local_user_for_deletion = []
-    for user_gaia_id, nitUserObject in ad_nit.items():
+    for user_gaia_id, nitUserObject in ad_nit_dist.items():
 
         # 1- User exist dans AD NIT et pas dans AD GAIA and not exist in exception list==> To be deleted
-        if user_gaia_id not in ad_gaia and user_gaia_id not in users_except_dict:
+        if user_gaia_id not in ad_gaia_dict and user_gaia_id not in exception_users_dict:
             print "User %s does not exit in AD GAIA anymore. Going to remove the user" % user_gaia_id
             local_user_for_deletion.append(nitUserObject)
             continue
 
-        gaia_user_object = ad_gaia.get(user_gaia_id)
-        gaia_user_object.normalize()
+        gaia_user_object = ad_gaia_dict.get(user_gaia_id)
 
-        # 2- User existe dans AD NIT et dans AD GAIA avec statut gaia "Désactivé" ou "N/A" ==> To be deleted
+        if isinstance(gaia_user_object, User):
+            gaia_user_object.normalize()
+
+        else:
+            print user_gaia_id + " not instance of user"
+            continue
+
+        # 2- User exists dans AD NIT et dans AD GAIA avec statut gaia "Désactivé" ou "N/A" ==> To be deleted
         if not gaia_user_object.is_active():
-            print "User %s is deactivated in AD GAIA anymore. Going to remove the user \t status= %s" % (
+            print "User %s is deactivated in AD GAIA. Going to remove the user \t status= %s" % (
                 user_gaia_id, gaia_user_object.status)
             local_user_for_deletion.append(gaia_user_object)
 
     return local_user_for_deletion
 
 
-def build_user_to_be_updated(ad_nit, ad_gaia, users_except_dict):
+# TODO: Complete the method for creating csv for AD user update
+def build_user_to_be_updated(ad_nit_dict, ad_gaia_dict, exception_user_dict):
     """ Build User to be remove from application source AD base on the following criteria
     1- User existe dans AD NIT et pas dans AD GAIA and not exist in exception list==> To be deleted
     2- User existe dans AD NIT et dans AD GAIA avec statut gaia "Désactivé" ou "N/A" ==> To be deleted
-    :param ad_nit:
-    :param ad_gaia:
-    :param users_except_dict:  exception user dictionary
+    :param ad_nit_dict:
+    :param ad_gaia_dict:
+    :param exception_user_dict:  exception user dictionary
     :return:
     """
 
-    pass
+    return NotImplemented
 
 
-def build_user_to_be_created(ad_nit, ad_gaia, users_except_dict):
+# TODO: Complete the method for creating csv for AD user creation
+def build_user_to_be_created(ad_nit_dict, ad_gaia_dict, exception_user_dict):
     """ Build User to be remove from application source AD base on the following criteria
    1- User existe dans AD NIT et pas dans AD GAIA and not exist in exception list==> To be deleted
    2- User existe dans AD NIT et dans AD GAIA avec statut gaia "Désactivé" ou "N/A" ==> To be deleted
-   :param ad_nit:
-   :param ad_gaia:
-   :param users_except_dict:  exception user dictionary
+   :param ad_nit_dict:
+   :param ad_gaia_dict:
+   :param exception_user_dict:  exception user dictionary
    :return:
    """
 
-    pass
+    return NotImplemented
 
 
 if __name__ == "__main__":
@@ -332,15 +346,14 @@ if __name__ == "__main__":
 
     configFile = build_conf_file()
 
-    # gaiaFieldnames = ['id_gaia', 'id_rh', 'prenom', 'nom', 'status_gaia', 'email', 'code_orga', 'working_site', 'user_type']
+    dr_elec_list = ['1306', '1307', '1308', '1334', '1335', '1336', '1364', '1365', '1366', '1395', '1396', '1397',
+                    '1424', '1425', '1429', '1444', '1445', '1449', '1450', '1464', '1465', '1466', '1494', '1496',
+                    '1497']
 
-    dr_elec = ['1306', '1307', '1308', '1334', '1335', '1336', '1364', '1365', '1366',
-               '1395', '1396', '1397', '1424', '1425', '1429', '1444', '1445', '1449', '1450', '1464', '1465', '1466',
-               '1494', '1496', '1497']
     csvFieldnames = ['id_gaia', 'nom', 'prenom', 'email']
 
     # build ad nit dictionary
-    ad_nit_csv = '../resources/Export_AD_16082016.csv'
+    ad_nit_csv = '../resources/Export_AD_04072016.csv'
     ad_nit = build_ad_nit(ad_nit_csv)
     print "la taille de l'AD NIT est %s" % len(ad_nit)
 
@@ -351,7 +364,7 @@ if __name__ == "__main__":
 
     # build ad gaia dictionary
     ad_gaia_csv = '../resources/20160701_074608_TB5_GAIA_2016_0630.csv'
-    ad_gaia = build_ad_gaia(ad_gaia_csv, dr_elec=dr_elec)
+    ad_gaia = build_ad_gaia(ad_gaia_csv, dr_elec=dr_elec_list)
 
     print "la taille de l'AD GAIA est %s" % len(ad_gaia)
 
@@ -367,9 +380,11 @@ if __name__ == "__main__":
     if ad_nit and ad_gaia:
         user_for_deletion = build_user_to_be_deleted(ad_nit, ad_gaia, users_except_dict)
         print "There is %s users to delete" % len(user_for_deletion)
-        createCsvFile(userList=user_for_deletion, outputFileName="../resources/supprimerUser.csv", fieldsnames=csvFieldnames)
+        create_csv_file(user_list=user_for_deletion, output_filename="../resources/supprimerUser.csv",
+                        fieldsnames=csvFieldnames)
 
-        user_for_update = build_user_to_be_updated(ad_nit, ad_gaia)
-        user_for_creation = build_user_to_be_created(ad_nit, ad_gaia)
+        user_for_update = build_user_to_be_updated(ad_nit_dict=ad_nit, ad_gaia_dict=ad_gaia,
+                                                   exception_user_dict=users_except_dict)
 
-
+        user_for_creation = build_user_to_be_created(ad_nit_dict=ad_nit, ad_gaia_dict=ad_gaia,
+                                                     exception_user_dict=users_except_dict)
