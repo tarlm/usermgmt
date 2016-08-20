@@ -187,6 +187,12 @@ def build_conf_file():
     # get list of csv fields
     l_config_object['csvFieldnames'] = extract_as_list(l_configFile.get('CSV_CONF', 'csvFieldnames'))
 
+    l_config_object['ad_nit_csv'] = l_configFile.get('CSV_CONF', 'ad_nit_csv')
+
+    l_config_object['ad_gaia_csv'] = l_configFile.get('CSV_CONF', 'ad_gaia_csv')
+
+    l_config_object['users_except_dict_csv'] = l_configFile.get('CSV_CONF', 'users_except_dict_csv')
+
 
 
     return l_config_object
