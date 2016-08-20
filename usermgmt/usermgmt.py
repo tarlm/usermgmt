@@ -1,10 +1,14 @@
-# -*- coding:utf-8 -*-
+#!/usr/bin/python
+#  -*- coding:utf-8 -*-
 import cStringIO
 import codecs
 import csv
 import re
+import ConfigParser
 from sys import exit
 
+# use http://pythex.org/ to validate the regex first
+EMAIL_REGEX = re.compile("^[A-Za-z].*@.*((grdf|erdf-grdf)\.fr)$")
 
 class User(object):
     """
@@ -157,8 +161,15 @@ class UnicodeDictWriter:
             self.writerow(row)
 
 
-# use http://pythex.org/ to validate the regex first
-EMAIL_REGEX = re.compile("^[A-Za-z].*@.*((grdf|erdf-grdf)\.fr)$")
+def extract_as_list(str_param):
+    """ Split a string in list by comma then filter empty caracter
+    :param str_param: the string to split
+    :return: the list
+    """
+    str_list = str_param.split(',')
+    str_list = filter(None, [x.strip() for x in str_list])
+
+    return str_list
 
 
 # TODO: load the config file from conf folder and build config object
@@ -166,8 +177,19 @@ def build_conf_file():
     """ build the conf object from config_file
     :return:
     """
-    return NotImplemented
+    l_config_object= {}
+    l_configFile = ConfigParser.ConfigParser()
+    l_configFile.read(filenames="../conf/user_config.ini")
 
+    # get list of dr elec as string then split by comma and strip 'space' in case they are.
+    l_config_object['dr_elec_list'] = extract_as_list(l_configFile.get('DRELEC', 'drList'))
+
+    # get list of csv fields
+    l_config_object['csvFieldnames'] = extract_as_list(l_configFile.get('CSV_CONF', 'csvFieldnames'))
+
+
+
+    return l_config_object
 
 def build_ad_nit(csv_nit_path):
     """ build a dictionary contains the nit ad user from csv
@@ -272,36 +294,38 @@ def create_csv_file(user_list, fieldsnames, output_filename):
 
 def build_user_to_be_deleted(ad_nit_dist, ad_gaia_dict, exception_users_dict):
     """ Build User to be remove from application source AD base on the following criteria
-    1- User existe dans AD NIT et pas dans AD GAIA and not exist in exception list==> To be deleted
-    2- User existe dans AD NIT et dans AD GAIA avec statut gaia "Désactivé" ou "N/A" ==> To be deleted
+    1. User existe dans AD NIT et pas dans AD GAIA and not exist in exception list==> To be deleted
+    2. User existe dans AD NIT et pas dans AD GAIA and not exist in exception list==> To be deleted
+    3. User existe dans AD NIT et dans AD GAIA avec statut gaia "Désactivé" ou "N/A" ==> To be deleted
     :param ad_nit_dist:
     :param ad_gaia_dict:
     :param exception_users_dict:  exception user dictionary
     :return:
     """
     local_user_for_deletion = []
-    for user_gaia_id, nitUserObject in ad_nit_dist.items():
+    for nituser_gaia_id, nitUserObject in ad_nit_dist.items():
 
-        # 1- User exist dans AD NIT et pas dans AD GAIA and not exist in exception list==> To be deleted
-        if user_gaia_id not in ad_gaia_dict and user_gaia_id not in exception_users_dict:
-            print "User %s does not exit in AD GAIA anymore. Going to remove the user" % user_gaia_id
+        # 1. User existe dans AD NIT et pas dans AD GAIA and not exist in exception list ==> add to delete and go for next user
+        if nituser_gaia_id not in ad_gaia_dict and nituser_gaia_id not in exception_users_dict:
+            print "User %s does not exit in AD GAIA anymore. Going to remove the user" % nituser_gaia_id
             local_user_for_deletion.append(nitUserObject)
             continue
 
-        gaia_user_object = ad_gaia_dict.get(user_gaia_id)
+        # nit user exists in gaia ad. Go for rule 2. and 3.
 
-        if isinstance(gaia_user_object, User):
-            gaia_user_object.normalize()
+        gaiauser_object = ad_gaia_dict.get(nituser_gaia_id)
 
+        if isinstance(gaiauser_object, User):
+            gaiauser_object.normalize()
         else:
-            print user_gaia_id + " not instance of user"
+            print nituser_gaia_id + " not instance of user"
             continue
 
         # 2- User exists dans AD NIT et dans AD GAIA avec statut gaia "Désactivé" ou "N/A" ==> To be deleted
-        if not gaia_user_object.is_active():
+        if not gaiauser_object.is_active():
             print "User %s is deactivated in AD GAIA. Going to remove the user \t status= %s" % (
-                user_gaia_id, gaia_user_object.status)
-            local_user_for_deletion.append(gaia_user_object)
+                nituser_gaia_id, gaiauser_object.status)
+            local_user_for_deletion.append(gaiauser_object)
 
     return local_user_for_deletion
 
@@ -346,25 +370,21 @@ if __name__ == "__main__":
 
     configFile = build_conf_file()
 
-    dr_elec_list = ['1306', '1307', '1308', '1334', '1335', '1336', '1364', '1365', '1366', '1395', '1396', '1397',
-                    '1424', '1425', '1429', '1444', '1445', '1449', '1450', '1464', '1465', '1466', '1494', '1496',
-                    '1497']
-
-    csvFieldnames = ['id_gaia', 'nom', 'prenom', 'email']
-
     # build ad nit dictionary
-    ad_nit_csv = '../resources/Export_AD_04072016.csv'
+
+    ad_nit_csv = configFile.get('ad_nit_csv')
+
     ad_nit = build_ad_nit(ad_nit_csv)
     print "la taille de l'AD NIT est %s" % len(ad_nit)
 
     # build ad nit dictionary
-    users_except_dict_csv = '../resources/Exception_AD_16082016.csv'
+    users_except_dict_csv = configFile.get('users_except_dict_csv')
     users_except_dict = build_ad_nit(users_except_dict_csv)
     print "le nombre d'utilisateur en exception est %s" % len(ad_nit)
 
     # build ad gaia dictionary
-    ad_gaia_csv = '../resources/20160701_074608_TB5_GAIA_2016_0630.csv'
-    ad_gaia = build_ad_gaia(ad_gaia_csv, dr_elec=dr_elec_list)
+    ad_gaia_csv = configFile.get('ad_gaia_csv')
+    ad_gaia = build_ad_gaia(ad_gaia_csv, dr_elec = configFile.get('dr_elec_list'))
 
     print "la taille de l'AD GAIA est %s" % len(ad_gaia)
 
@@ -381,7 +401,7 @@ if __name__ == "__main__":
         user_for_deletion = build_user_to_be_deleted(ad_nit, ad_gaia, users_except_dict)
         print "There is %s users to delete" % len(user_for_deletion)
         create_csv_file(user_list=user_for_deletion, output_filename="../resources/supprimerUser.csv",
-                        fieldsnames=csvFieldnames)
+                        fieldsnames=configFile.get('csvFieldnames'))
 
         user_for_update = build_user_to_be_updated(ad_nit_dict=ad_nit, ad_gaia_dict=ad_gaia,
                                                    exception_user_dict=users_except_dict)
