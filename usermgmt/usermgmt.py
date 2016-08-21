@@ -5,10 +5,12 @@ import codecs
 import csv
 import re
 import ConfigParser
+import logging
 from sys import exit
 
 # use http://pythex.org/ to validate the regex first
 EMAIL_REGEX = re.compile("^[A-Za-z].*@.*((grdf|erdf-grdf)\.fr)$")
+
 
 class User(object):
     """
@@ -177,9 +179,15 @@ def build_conf_file():
     """ build the conf object from config_file
     :return:
     """
-    l_config_object= {}
+    logging.debug('### Started: building configuration file ###')
+
+    l_config_object = {}
     l_configFile = ConfigParser.ConfigParser()
-    l_configFile.read(filenames="../conf/user_config.ini")
+    config_filenames="../conf/user_config.ini"
+
+    logging.debug('read the configuration parameters from: ' + config_filenames)
+
+    l_configFile.read(filenames=config_filenames)
 
     # get list of dr elec as string then split by comma and strip 'space' in case they are.
     l_config_object['dr_elec_list'] = extract_as_list(l_configFile.get('DRELEC', 'drList'))
@@ -199,13 +207,19 @@ def build_conf_file():
 
     l_config_object['user_update_csv'] = l_configFile.get('CSV_OUT', 'user_update_csv')
 
+    logging.debug('### Ended: building configuration file ###')
+
     return l_config_object
+
 
 def build_ad_nit(csv_nit_path):
     """ build a dictionary contains the nit ad user from csv
     :param csv_nit_path:
     :return: a dictionary contains as key the gaia id of the user and as value the user object
     """
+
+    logging.debug('Load user dictionnary from %s csv file' % csv_nit_path)
+
     local_ad_nit = {}
     with open(csv_nit_path, 'rb') as nit_csv_file:
 
@@ -227,6 +241,7 @@ def build_ad_nit(csv_nit_path):
                 local_ad_nit[l_id_gaia] = User(id_gaia=l_id_gaia, nom=l_nom, prenom=l_prenom, email=l_email,
                                                status=l_status)
         except csv.Error as cre:
+            logging.error('exception raised in build_ad_nit fucntion, file %s, line %d: %s' % (csv_nit_path, nit_reader.reader.line_num, cre))
             exit('file %s, line %d: %s' % (csv_nit_path, nit_reader.reader.line_num, cre))
 
     return local_ad_nit
@@ -242,6 +257,7 @@ def build_ad_gaia(csv_gaia_path, dr_elec):
     local_ad_gaia = {}
 
     with open(csv_gaia_path, 'rb') as gaia_csv_file:
+
         gaia_reader = UnicodeDictReader(gaia_csv_file, dialect=csv.excel, encoding="utf-8", delimiter=';',
                                         skipinitialspace=True)
         try:
@@ -255,8 +271,8 @@ def build_ad_gaia(csv_gaia_path, dr_elec):
                 # skip users belong to the elec's DR
                 user_dr = row['code_orga'].strip()
                 if user_dr[:4] in dr_elec:
-                    print 'Info: Skiping the user %s %s %s %s with DR %s belongs to DR ELEC.' % (
-                        row['id_gaia'], row['prenom'], row['nom'], row['email'], row['code_orga'])
+                    logging.info('Skiping the user %s %s %s %s with DR %s belongs to DR ELEC.' % (
+                        row['id_gaia'], row['prenom'], row['nom'], row['email'], row['code_orga']))
                     user_dr_elec_nbre += 1
                     continue
 
@@ -270,9 +286,10 @@ def build_ad_gaia(csv_gaia_path, dr_elec):
                                                 status=l_status)
 
         except csv.Error as cre:
+            logging.error('Error in build gaia function, file %s, line %d: %s' % (csv_gaia_path, gaia_reader.reader.line_num, cre))
             exit('file %s, line %d: %s' % (csv_gaia_path, gaia_reader.reader.line_num, cre))
 
-    print 'There are %s users from DR ELEC' % user_dr_elec_nbre
+    logging.info('There are %s users from DR ELEC' % user_dr_elec_nbre)
 
     return local_ad_gaia
 
@@ -299,7 +316,7 @@ def create_csv_file(user_list, fieldsnames, output_filename):
                 csv_writer.writerow(row_dict)
 
         except csv.Error as cwe:
-            print 'Can not write the file %s, line %d: %s' % (output_filename, csv_writer.writer.line_num, cwe)
+            logging.error('Can not write the file %s, line %d: %s' % (output_filename, csv_writer.writer.line_num, cwe))
 
 
 def build_user_to_be_deleted(ad_nit_dict, ad_gaia_dict, exception_users_dict):
@@ -317,7 +334,7 @@ def build_user_to_be_deleted(ad_nit_dict, ad_gaia_dict, exception_users_dict):
 
         # 1. User existe dans AD NIT et pas dans AD GAIA and not exist in exception list ==> add to delete and go for next user
         if nituser_gaia_id not in ad_gaia_dict and nituser_gaia_id not in exception_users_dict:
-            print "User %s does not exit in AD GAIA anymore. Going to remove the user" % nituser_gaia_id
+            logging.debug('User %s does not exit in AD GAIA anymore. Going to remove the user' % nituser_gaia_id)
             local_user_for_deletion.append(nitUserObject)
             continue
 
@@ -328,13 +345,13 @@ def build_user_to_be_deleted(ad_nit_dict, ad_gaia_dict, exception_users_dict):
         if isinstance(gaiauser_object, User):
             gaiauser_object.normalize()
         else:
-            print nituser_gaia_id + " not instance of user"
+            logging.debug(nituser_gaia_id + " not instance of user")
             continue
 
         # 2- User exists dans AD NIT et dans AD GAIA avec statut gaia "Désactivé" ou "N/A" ==> To be deleted
         if not gaiauser_object.is_active():
-            print "User %s is deactivated in AD GAIA. Going to remove the user \t status= %s" % (
-                nituser_gaia_id, gaiauser_object.status)
+            logging.debug('User %s is deactivated in AD GAIA. Going to remove the user \t status= %s' % (
+                nituser_gaia_id, gaiauser_object.status))
             local_user_for_deletion.append(gaiauser_object)
 
     return local_user_for_deletion
@@ -350,8 +367,6 @@ def build_user_to_be_updated(ad_nit_dict, ad_gaia_dict, exception_user_dict):
     :param exception_user_dict:  exception user dictionary
     :return:
     """
-
-
 
     return NotImplemented
 
@@ -369,25 +384,24 @@ def build_user_to_be_created(ad_nit_dict, ad_gaia_dict, exception_user_dict):
     local_user_for_creation = []
     for gaia_user_id, gaiaUserObject in ad_gaia_dict.items():
 
-
         if gaia_user_id not in ad_nit_dict and EMAIL_REGEX.match(gaiaUserObject.email):
-            print "User %s from GAIA does not exit in AD NIT. Going to add the user" % gaia_user_id
+            logging.debug('User %s from GAIA does not exit in AD NIT. Going to add the user' % gaia_user_id )
             local_user_for_creation.append(gaiaUserObject)
             continue
 
     # nit user exists in gaia ad. Go for rule 2. and 3.
     for except_user_id, exceptUserObject in exception_user_dict.items():
         if except_user_id not in ad_nit_dict and EMAIL_REGEX.match(gaiaUserObject.email):
-            print "User %s from exception does not exit in AD NIT. Going to add the user" % except_user_id
+            logging.debug('User %s from exception does not exit in AD NIT. Going to add the user' % except_user_id)
             local_user_for_creation.append(exceptUserObject)
             continue
 
     return local_user_for_creation
 
 
-if __name__ == "__main__":
+def main():
     """ The main program """
-
+    print 'Started the User managment tool'
     ad_nit = {}  # just to know the return object is dictionary
     ad_gaia = {}  # just to know the return object is dictionary
     users_except_dict = {}
@@ -395,38 +409,52 @@ if __name__ == "__main__":
     user_for_creation = []
     user_for_deletion = []
 
+    logging.basicConfig(filename='../log/usermgmt.log', filemode='w', level=logging.INFO)
+
+    logging.info('######################## Started the user management tool ########################')
+
     configFile = build_conf_file()
 
     # build ad nit dictionary
 
     ad_nit_csv = configFile.get('ad_nit_csv')
 
+    logging.debug('### Started: building NIT AD dictionnary representation ###')
     ad_nit = build_ad_nit(ad_nit_csv)
-    print "la taille de l'AD NIT est %s" % len(ad_nit)
+    logging.debug('### Ended: building NIT AD dictionnary representation ###')
+    logging.info("la taille de l'AD NIT est %s" % len(ad_nit))
 
     # build ad nit dictionary
     users_except_dict_csv = configFile.get('users_except_dict_csv')
+
+    logging.debug('### Started: building exception users dictionnary representation ###')
+
     users_except_dict = build_ad_nit(users_except_dict_csv)
-    print "le nombre d'utilisateur en exception est %s" % len(ad_nit)
+
+    logging.debug('### Ended: building exception users dictionnary representation ###')
+    logging.info("le nombre d'utilisateur en exception est %s" % len(ad_nit))
 
     # build ad gaia dictionary
     ad_gaia_csv = configFile.get('ad_gaia_csv')
-    ad_gaia = build_ad_gaia(ad_gaia_csv, dr_elec=configFile.get('dr_elec_list'))
 
-    print "la taille de l'AD GAIA est %s" % len(ad_gaia)
+    logging.debug('### Started: building AD GAIA users dictionnary representation ###')
+
+    ad_gaia = build_ad_gaia(ad_gaia_csv, dr_elec=configFile.get('dr_elec_list'))
+    logging.debug('### Ended: building AD GAIA users dictionnary representation ###')
+    logging.info("la taille de l'AD GAIA est %s" % len(ad_gaia))
 
     # process the dictionary
     if not ad_nit:
-        print "The Nit csv file can not be handled"
+        logging.info( "The Nit csv file can not be handled")
         exit(1)
 
     if not ad_gaia:
-        print "The GAIA csv file can not be handled"
+        logging.info( "The GAIA csv file can not be handled")
         exit(1)
 
     if ad_nit and ad_gaia:
         user_for_deletion = build_user_to_be_deleted(ad_nit, ad_gaia, users_except_dict)
-        print "There is %s users to delete" % len(user_for_deletion)
+        logging.info( "There is %s users to delete" % len(user_for_deletion))
         create_csv_file(user_list=user_for_deletion, output_filename=configFile.get('user_deletion_csv'),
                         fieldsnames=configFile.get('csvFieldnames'))
 
@@ -437,3 +465,11 @@ if __name__ == "__main__":
                                                      exception_user_dict=users_except_dict)
         create_csv_file(user_list=user_for_creation, output_filename=configFile.get('user_creation_csv'),
                         fieldsnames=configFile.get('csvFieldnames'))
+
+        logging.info('######################## Finished the user management tool ########################')
+
+        print '\t\t/!\/!\/!\ Ended the User managment tool: please have a look on the log file /!\/!\/!\ '
+
+
+if __name__ == "__main__":
+    main()
