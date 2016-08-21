@@ -193,7 +193,11 @@ def build_conf_file():
 
     l_config_object['users_except_dict_csv'] = l_configFile.get('CSV_CONF', 'users_except_dict_csv')
 
+    l_config_object['user_creation_csv'] = l_configFile.get('CSV_OUT', 'user_creation_csv')
 
+    l_config_object['user_deletion_csv'] = l_configFile.get('CSV_OUT', 'user_deletion_csv')
+
+    l_config_object['user_update_csv'] = l_configFile.get('CSV_OUT', 'user_update_csv')
 
     return l_config_object
 
@@ -298,18 +302,18 @@ def create_csv_file(user_list, fieldsnames, output_filename):
             print 'Can not write the file %s, line %d: %s' % (output_filename, csv_writer.writer.line_num, cwe)
 
 
-def build_user_to_be_deleted(ad_nit_dist, ad_gaia_dict, exception_users_dict):
+def build_user_to_be_deleted(ad_nit_dict, ad_gaia_dict, exception_users_dict):
     """ Build User to be remove from application source AD base on the following criteria
     1. User existe dans AD NIT et pas dans AD GAIA and not exist in exception list==> To be deleted
     2. User existe dans AD NIT et pas dans AD GAIA and not exist in exception list==> To be deleted
     3. User existe dans AD NIT et dans AD GAIA avec statut gaia "Désactivé" ou "N/A" ==> To be deleted
-    :param ad_nit_dist:
+    :param ad_nit_dict:
     :param ad_gaia_dict:
     :param exception_users_dict:  exception user dictionary
     :return:
     """
     local_user_for_deletion = []
-    for nituser_gaia_id, nitUserObject in ad_nit_dist.items():
+    for nituser_gaia_id, nitUserObject in ad_nit_dict.items():
 
         # 1. User existe dans AD NIT et pas dans AD GAIA and not exist in exception list ==> add to delete and go for next user
         if nituser_gaia_id not in ad_gaia_dict and nituser_gaia_id not in exception_users_dict:
@@ -347,21 +351,38 @@ def build_user_to_be_updated(ad_nit_dict, ad_gaia_dict, exception_user_dict):
     :return:
     """
 
+
+
     return NotImplemented
 
 
 # TODO: Complete the method for creating csv for AD user creation
 def build_user_to_be_created(ad_nit_dict, ad_gaia_dict, exception_user_dict):
-    """ Build User to be remove from application source AD base on the following criteria
-   1- User existe dans AD NIT et pas dans AD GAIA and not exist in exception list==> To be deleted
+    """ Build User to be created from application source AD base on the following criteria
+   1- User existe dans AD GAIA et pas dans AD NIT  and not exist in exception list==> To be deleted
    2- User existe dans AD NIT et dans AD GAIA avec statut gaia "Désactivé" ou "N/A" ==> To be deleted
    :param ad_nit_dict:
    :param ad_gaia_dict:
    :param exception_user_dict:  exception user dictionary
    :return:
    """
+    local_user_for_creation = []
+    for gaia_user_id, gaiaUserObject in ad_gaia_dict.items():
 
-    return NotImplemented
+
+        if gaia_user_id not in ad_nit_dict and EMAIL_REGEX.match(gaiaUserObject.email):
+            print "User %s from GAIA does not exit in AD NIT. Going to add the user" % gaia_user_id
+            local_user_for_creation.append(gaiaUserObject)
+            continue
+
+    # nit user exists in gaia ad. Go for rule 2. and 3.
+    for except_user_id, exceptUserObject in exception_user_dict.items():
+        if except_user_id not in ad_nit_dict and EMAIL_REGEX.match(gaiaUserObject.email):
+            print "User %s from exception does not exit in AD NIT. Going to add the user" % except_user_id
+            local_user_for_creation.append(exceptUserObject)
+            continue
+
+    return local_user_for_creation
 
 
 if __name__ == "__main__":
@@ -390,7 +411,7 @@ if __name__ == "__main__":
 
     # build ad gaia dictionary
     ad_gaia_csv = configFile.get('ad_gaia_csv')
-    ad_gaia = build_ad_gaia(ad_gaia_csv, dr_elec = configFile.get('dr_elec_list'))
+    ad_gaia = build_ad_gaia(ad_gaia_csv, dr_elec=configFile.get('dr_elec_list'))
 
     print "la taille de l'AD GAIA est %s" % len(ad_gaia)
 
@@ -406,7 +427,7 @@ if __name__ == "__main__":
     if ad_nit and ad_gaia:
         user_for_deletion = build_user_to_be_deleted(ad_nit, ad_gaia, users_except_dict)
         print "There is %s users to delete" % len(user_for_deletion)
-        create_csv_file(user_list=user_for_deletion, output_filename="../resources/supprimerUser.csv",
+        create_csv_file(user_list=user_for_deletion, output_filename=configFile.get('user_deletion_csv'),
                         fieldsnames=configFile.get('csvFieldnames'))
 
         user_for_update = build_user_to_be_updated(ad_nit_dict=ad_nit, ad_gaia_dict=ad_gaia,
@@ -414,3 +435,5 @@ if __name__ == "__main__":
 
         user_for_creation = build_user_to_be_created(ad_nit_dict=ad_nit, ad_gaia_dict=ad_gaia,
                                                      exception_user_dict=users_except_dict)
+        create_csv_file(user_list=user_for_creation, output_filename=configFile.get('user_creation_csv'),
+                        fieldsnames=configFile.get('csvFieldnames'))
