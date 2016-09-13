@@ -8,10 +8,12 @@ from cmislib.exceptions import CmisException, UpdateConflictException
 import os, sys
 
 try:
-    client = CmisClient('http://domain.com.au:8080/alfresco/cmisatom', 'admin', 'password')
-    repo = client.defaultRepository
-except:
-    print "failed to connect to Alfresco"
+    # client = CmisClient('https://cmis.alfresco.com/api/-default-/public/cmis/versions/1.0/atom', 'admin', 'password')
+    cmisClient = CmisClient('https://cmis.alfresco.com/api/-default-/public/cmis/versions/1.1/atom', 'admin', 'admin')
+    repo = cmisClient.defaultRepository
+
+except CmisException as cme:
+    print "failed to connect to Alfresco: \r\n%s" % cme
     quit()
 
 try:
@@ -24,5 +26,6 @@ try:
         for key,val in obj.properties.items():
             if key=='cm:name' or key=='cm:title' or key=='cmis:path':
                 print key,'=',val
-except ValueError:
-    print "failed to read site list"
+
+except ValueError as vle:
+    print "failed to read site list: \r\n%s" % vle
