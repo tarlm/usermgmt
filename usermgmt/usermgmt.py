@@ -11,6 +11,7 @@ from sys import exit
 # use http://pythex.org/ to validate the regex first
 EMAIL_REGEX = re.compile("^[A-Za-z].*@.*((grdf|erdf-grdf)\.fr)$")
 
+
 class User(object):
     """
     This User object is used to hold a user identity. This model is easy for data manipulation
@@ -31,6 +32,8 @@ class User(object):
         self.prenom = prenom
         self.email = email
         self.status = status
+        self.logger = logging.getLogger('usermgmt.User')
+        self.logger.info('Creating an instance of User')
 
     @staticmethod
     def string_equal(a, b):
