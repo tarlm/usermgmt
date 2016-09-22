@@ -34,7 +34,7 @@ class User(object):
         self.status = status
         self.logger = logging.getLogger('usermgmt.User')
         self.logger.debug('Creating an instance of User: gaia=%s, firstname=%s, name=%s, email=%s, status=%s' %
-                          (self.id_gaia, self.prenom, self.nom,  self.email, self.status))
+                          (self.id_gaia, self.prenom, self.nom, self.email, self.status))
 
     @staticmethod
     def string_equal(a, b):
@@ -53,6 +53,15 @@ class User(object):
         :return: True if user is active and False if not
         """
         if self.status in (u'Activé', u'A initialiser', u'Active', u'Verrouillé'):
+            return True
+        else:
+            return False
+
+    def is_external(self):
+        """ check if current user is external
+        :return: True if user is external and False if not
+        """
+        if (u'external', u'externe') in self.email:
             return True
         else:
             return False
@@ -226,7 +235,7 @@ def build_ad_nit(csv_nit_path):
     local_ad_nit = {}
     with open(csv_nit_path, 'rb') as nit_csv_file:
 
-       # nit_reader = UnicodeDictReader(nit_csv_file, dialect=csv.excel, encoding="utf-8", delimiter=';',
+        # nit_reader = UnicodeDictReader(nit_csv_file, dialect=csv.excel, encoding="utf-8", delimiter=';',
         #                               skipinitialspace=True)
 
         nit_reader = UnicodeDictReader(nit_csv_file, dialect=csv.excel, encoding="utf-8", skipinitialspace=True)
@@ -263,7 +272,7 @@ def build_ad_gaia(csv_gaia_path, dr_elec):
     local_ad_gaia = {}
 
     with open(csv_gaia_path, 'rb') as gaia_csv_file:
-# delimiter=';',
+        # delimiter=';',
         gaia_reader = UnicodeDictReader(gaia_csv_file, dialect=csv.excel, encoding="utf-8", skipinitialspace=True)
         try:
 
@@ -345,7 +354,8 @@ def build_user_to_be_deleted(ad_nit_dict, ad_gaia_dict, exception_users_dict):
         # ==> add to delete and go for next user
         # ==> Remove the user from ad_nit_dict object
         if nituser_gaia_id not in ad_gaia_dict and nituser_gaia_id not in exception_users_dict:
-            logging.debug('User %s is neither in AD GAIA nor in Exception list. Going to remove the user' % nituser_gaia_id)
+            logging.debug(
+                'User %s is neither in AD GAIA nor in Exception list. Going to remove the user' % nituser_gaia_id)
             local_user_for_deletion.append(nitUserObject)
             del ad_nit_dict[nituser_gaia_id]
             logging.debug('Delete the user %s from ad nit object' % nituser_gaia_id)
@@ -420,8 +430,15 @@ def build_user_to_be_created(ad_nit_dict, ad_gaia_dict, exception_user_dict):
     for gaia_user_id, gaiaUserObject in ad_gaia_dict.items():
 
         if gaia_user_id not in ad_nit_dict and EMAIL_REGEX.match(gaiaUserObject.email):
-            logging.info('User %s from GAIA does not exit in AD NIT. Going to add the user' % gaia_user_id)
-            local_user_for_creation.append(gaiaUserObject)
+            logging.debug(
+                'User %s from GAIA does not exit in AD NIT. Going to check if user is external' % gaia_user_id)
+
+            if not gaiaUserObject.is_external:
+                logging.debug('User %s is not external. Will be created' % gaia_user_id)
+                local_user_for_creation.append(gaiaUserObject)
+            else:
+                logging.debug('User %s is external. Will be skipped' % gaia_user_id)
+
             continue
 
     # nit user exists in gaia ad. Go for rule 2. and 3.
