@@ -33,7 +33,8 @@ class User(object):
         self.email = email
         self.status = status
         self.logger = logging.getLogger('usermgmt.User')
-        self.logger.info('Creating an instance of User')
+        self.logger.debug('Creating an instance of User: gaia=%s, firstname=%s, name=%s, email=%s, status=%s' %
+                          (self.id_gaia, self.prenom, self.nom,  self.email, self.status))
 
     @staticmethod
     def string_equal(a, b):
@@ -195,13 +196,13 @@ def build_conf_file():
     l_config_object['dr_elec_list'] = extract_as_list(l_config_file.get('DRELEC', 'drList'))
 
     # get list of csv fields
-    l_config_object['csvFieldnames'] = extract_as_list(l_config_file.get('CSV_CONF', 'csvFieldnames'))
+    l_config_object['csvFieldnames'] = extract_as_list(l_config_file.get('CSV_IN', 'csvFieldnames'))
 
-    l_config_object['ad_nit_csv'] = l_config_file.get('CSV_CONF', 'ad_nit_csv')
+    l_config_object['ad_nit_csv'] = l_config_file.get('CSV_IN', 'ad_nit_csv')
 
-    l_config_object['ad_gaia_csv'] = l_config_file.get('CSV_CONF', 'ad_gaia_csv')
+    l_config_object['ad_gaia_csv'] = l_config_file.get('CSV_IN', 'ad_gaia_csv')
 
-    l_config_object['users_except_dict_csv'] = l_config_file.get('CSV_CONF', 'users_except_dict_csv')
+    l_config_object['users_except_csv'] = l_config_file.get('CSV_IN', 'users_except_csv')
 
     l_config_object['user_creation_csv'] = l_config_file.get('CSV_OUT', 'user_creation_csv')
 
@@ -334,16 +335,19 @@ def build_user_to_be_deleted(ad_nit_dict, ad_gaia_dict, exception_users_dict):
     :param ad_nit_dict:
     :param ad_gaia_dict:
     :param exception_users_dict:  exception user dictionary
-    :return:
+    :return: a list of users to be deleted from the AD. Build a csv file from the list
     """
     local_user_for_deletion = []
     for nituser_gaia_id, nitUserObject in ad_nit_dict.items():
 
-        # 1. User existe dans AD NIT et pas dans AD GAIA and not exist in exception list
+        # 1. User exists dans AD NIT et pas dans AD GAIA and not exist in exception list
         # ==> add to delete and go for next user
+        # ==> Remove the user from ad_nit_dict object
         if nituser_gaia_id not in ad_gaia_dict and nituser_gaia_id not in exception_users_dict:
-            logging.debug('User %s does not exit in AD GAIA anymore. Going to remove the user' % nituser_gaia_id)
+            logging.debug('User %s is neither in AD GAIA nor in Exception list. Going to remove the user' % nituser_gaia_id)
             local_user_for_deletion.append(nitUserObject)
+            del ad_nit_dict[nituser_gaia_id]
+            logging.debug('Delete the user %s from ad nit object' % nituser_gaia_id)
             continue
 
         # nit user exists in gaia ad. Go for rule 2. and 3.
@@ -361,6 +365,8 @@ def build_user_to_be_deleted(ad_nit_dict, ad_gaia_dict, exception_users_dict):
             logging.debug('User %s is deactivated in AD GAIA. Going to remove the user \t status= %s' % (
                 nituser_gaia_id, gaia_user_object.status))
             local_user_for_deletion.append(gaia_user_object)
+            del ad_nit_dict[nituser_gaia_id]
+            logging.debug('Delete the user %s from ad nit object' % nituser_gaia_id)
 
     return local_user_for_deletion
 
@@ -378,6 +384,8 @@ def build_user_to_be_updated(ad_nit_dict, ad_gaia_dict, exception_user_dict):
     local_user_for_update = []
 
     for nituser_gaia_id, nitUserObject in ad_nit_dict.items():
+
+        # TODO: Complete the method and check user is active
 
         # 1. User existe dans AD NIT et dans AD GAIA mais avec nom ou email different
         if nituser_gaia_id in ad_gaia_dict and not User.string_equal(ad_gaia_dict.get(nituser_gaia_id).email,
@@ -428,8 +436,8 @@ def build_user_to_be_created(ad_nit_dict, ad_gaia_dict, exception_user_dict):
 def main():
     """ The main program """
     print 'Started the User managment tool'
-    ad_nit = {}  # just to know the return object is dictionary
-    ad_gaia = {}  # just to know the return object is dictionary
+    ad_nit_dict = {}  # just to know the return object is dictionary
+    ad_gaia_dict = {}  # just to know the return object is dictionary
     users_except_dict = {}
     user_for_update = []
     user_for_creation = []
@@ -447,16 +455,16 @@ def main():
     ad_nit_csv = config_file.get('ad_nit_csv')
 
     logging.debug('### Started: building NIT AD dictionary representation ###')
-    ad_nit = build_ad_nit(ad_nit_csv)
+    ad_nit_dict = build_ad_nit(ad_nit_csv)
     logging.debug('### Ended: building NIT AD dictionary representation ###')
-    logging.info("la taille de l'AD NIT est %s" % len(ad_nit))
+    logging.info("la taille de l'AD NIT est %s" % len(ad_nit_dict))
 
     # build ad nit dictionary
-    users_except_dict_csv = config_file.get('users_except_dict_csv')
+    users_except_csv = config_file.get('users_except_csv')
 
     logging.debug('### Started: building exception users dictionary representation ###')
 
-    users_except_dict = build_ad_nit(users_except_dict_csv)
+    users_except_dict = build_ad_nit(users_except_csv)
 
     logging.debug('### Ended: building exception users dictionary representation ###')
     logging.info("le nombre d'utilisateur en exception est %s" % len(users_except_dict))
@@ -466,32 +474,35 @@ def main():
 
     logging.debug('### Started: building AD GAIA users dictionary representation ###')
 
-    ad_gaia = build_ad_gaia(ad_gaia_csv, dr_elec=config_file.get('dr_elec_list'))
+    ad_gaia_dict = build_ad_gaia(ad_gaia_csv, dr_elec=config_file.get('dr_elec_list'))
     logging.debug('### Ended: building AD GAIA users dictionary representation ###')
-    logging.info("la taille de l'AD GAIA est %s" % len(ad_gaia))
+    logging.info("la taille de l'AD GAIA est %s" % len(ad_gaia_dict))
 
-    # process the dictionary
-    if not ad_nit:
+    # process the dictionaries
+    if not ad_nit_dict:
         logging.info("The Nit csv file can not be handled")
         exit(1)
 
-    if not ad_gaia:
+    if not ad_gaia_dict:
         logging.info("The GAIA csv file can not be handled")
         exit(1)
 
-    if ad_nit and ad_gaia:
-        user_for_deletion = build_user_to_be_deleted(ad_nit, ad_gaia, users_except_dict)
+    if ad_nit_dict and ad_gaia_dict:
+        logging.info("### Start building users to be deleted list ###")
+        user_for_deletion = build_user_to_be_deleted(ad_nit_dict=ad_nit_dict, ad_gaia_dict=ad_gaia_dict,
+                                                     exception_users_dict=users_except_dict)
         logging.info("\t###There is %s users to delete" % len(user_for_deletion))
         create_csv_file(user_list=user_for_deletion, output_filename=config_file.get('user_deletion_csv'),
                         fieldsnames=config_file.get('csvFieldnames'))
+        logging.info("### End building users to be deleted list ###")
 
-        user_for_update = build_user_to_be_updated(ad_nit_dict=ad_nit, ad_gaia_dict=ad_gaia,
+        user_for_update = build_user_to_be_updated(ad_nit_dict=ad_nit_dict, ad_gaia_dict=ad_gaia_dict,
                                                    exception_user_dict=users_except_dict)
         logging.info("\t###There is %s users to update" % len(user_for_update))
         create_csv_file(user_list=user_for_update, output_filename=config_file.get('user_update_csv'),
                         fieldsnames=config_file.get('csvFieldnames'))
 
-        user_for_creation = build_user_to_be_created(ad_nit_dict=ad_nit, ad_gaia_dict=ad_gaia,
+        user_for_creation = build_user_to_be_created(ad_nit_dict=ad_nit_dict, ad_gaia_dict=ad_gaia_dict,
                                                      exception_user_dict=users_except_dict)
         logging.info("\t###There is %s users to create" % len(user_for_creation))
         create_csv_file(user_list=user_for_creation, output_filename=config_file.get('user_creation_csv'),

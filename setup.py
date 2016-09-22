@@ -18,4 +18,4 @@ config = {
     'name': 'usermgmt'
 }
 
-setup(**config)
+setup(install_requires=['cmislib'], **config)
