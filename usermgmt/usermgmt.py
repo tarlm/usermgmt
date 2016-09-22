@@ -226,8 +226,10 @@ def build_ad_nit(csv_nit_path):
     local_ad_nit = {}
     with open(csv_nit_path, 'rb') as nit_csv_file:
 
-        nit_reader = UnicodeDictReader(nit_csv_file, dialect=csv.excel, encoding="utf-8", delimiter=';',
-                                       skipinitialspace=True)
+       # nit_reader = UnicodeDictReader(nit_csv_file, dialect=csv.excel, encoding="utf-8", delimiter=';',
+        #                               skipinitialspace=True)
+
+        nit_reader = UnicodeDictReader(nit_csv_file, dialect=csv.excel, encoding="utf-8", skipinitialspace=True)
 
         try:
             # next(nit_reader)  # skip header row
@@ -261,9 +263,8 @@ def build_ad_gaia(csv_gaia_path, dr_elec):
     local_ad_gaia = {}
 
     with open(csv_gaia_path, 'rb') as gaia_csv_file:
-
-        gaia_reader = UnicodeDictReader(gaia_csv_file, dialect=csv.excel, encoding="utf-8", delimiter=';',
-                                        skipinitialspace=True)
+# delimiter=';',
+        gaia_reader = UnicodeDictReader(gaia_csv_file, dialect=csv.excel, encoding="utf-8", skipinitialspace=True)
         try:
 
             # optimisation in order to remove user belongs to DR elec
@@ -454,28 +455,28 @@ def main():
 
     ad_nit_csv = config_file.get('ad_nit_csv')
 
-    logging.debug('### Started: building NIT AD dictionary representation ###')
+    logging.info('### Started: building NIT AD dictionary representation ###')
     ad_nit_dict = build_ad_nit(ad_nit_csv)
-    logging.debug('### Ended: building NIT AD dictionary representation ###')
+    logging.info('### Ended: building NIT AD dictionary representation ###')
     logging.info("la taille de l'AD NIT est %s" % len(ad_nit_dict))
 
     # build ad nit dictionary
     users_except_csv = config_file.get('users_except_csv')
 
-    logging.debug('### Started: building exception users dictionary representation ###')
+    logging.info('### Started: building exception users dictionary representation ###')
 
     users_except_dict = build_ad_nit(users_except_csv)
 
-    logging.debug('### Ended: building exception users dictionary representation ###')
+    logging.info('### Ended: building exception users dictionary representation ###')
     logging.info("le nombre d'utilisateur en exception est %s" % len(users_except_dict))
 
     # build ad gaia dictionary
     ad_gaia_csv = config_file.get('ad_gaia_csv')
 
-    logging.debug('### Started: building AD GAIA users dictionary representation ###')
+    logging.info('### Started: building AD GAIA users dictionary representation ###')
 
     ad_gaia_dict = build_ad_gaia(ad_gaia_csv, dr_elec=config_file.get('dr_elec_list'))
-    logging.debug('### Ended: building AD GAIA users dictionary representation ###')
+    logging.info('### Ended: building AD GAIA users dictionary representation ###')
     logging.info("la taille de l'AD GAIA est %s" % len(ad_gaia_dict))
 
     # process the dictionaries
