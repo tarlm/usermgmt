@@ -209,6 +209,10 @@ def build_conf_file():
 
     l_config_object['ad_nit_csv'] = l_config_file.get('CSV_IN', 'ad_nit_csv')
 
+    l_config_object['csv_delimiter'] = l_config_file.get('CSV_IN', 'csv_delimiter')
+
+    l_config_object['csv_encoding'] = l_config_file.get('CSV_IN', 'csv_encoding')
+
     l_config_object['ad_gaia_csv'] = l_config_file.get('CSV_IN', 'ad_gaia_csv')
 
     l_config_object['users_except_csv'] = l_config_file.get('CSV_IN', 'users_except_csv')
@@ -224,16 +228,16 @@ def build_conf_file():
     return l_config_object
 
 
-def build_ad_nit(csv_nit_path, encoding="utf-8", delimiter=';'):
+def build_ad_nit(csv_path, encoding="utf-8", delimiter=';'):
     """ build a dictionary contains the nit ad user from csv
-    :param csv_nit_path:
+    :param csv_path:
     :return: a dictionary contains as key the gaia id of the user and as value the user object
     """
 
-    logging.debug('Load user dictionnary from %s csv file' % csv_nit_path)
+    logging.debug('Load user dictionnary from %s csv file' % csv_path)
 
     local_ad_nit = {}
-    with open(csv_nit_path, 'rb') as nit_csv_file:
+    with open(csv_path, 'rb') as nit_csv_file:
 
         nit_reader = UnicodeDictReader(nit_csv_file, dialect=csv.excel, encoding=encoding,
                                        delimiter=delimiter, skipinitialspace=True)
@@ -254,22 +258,22 @@ def build_ad_nit(csv_nit_path, encoding="utf-8", delimiter=';'):
                                                status=l_status)
         except csv.Error as cre:
             logging.error('exception raised in build_ad_nit fucntion, file %s, line %d: %s' % (
-                csv_nit_path, nit_reader.reader.line_num, cre))
-            exit('file %s, line %d: %s' % (csv_nit_path, nit_reader.reader.line_num, cre))
+                csv_path, nit_reader.reader.line_num, cre))
+            exit('file %s, line %d: %s' % (csv_path, nit_reader.reader.line_num, cre))
 
     return local_ad_nit
 
 
-def build_ad_gaia(csv_gaia_path, dr_elec, encoding="utf-8", delimiter=';'):
+def build_ad_gaia(csv_path, dr_elec, encoding="utf-8", delimiter=';'):
     """ build a dictionary contains the gaia ad user from csv
-    :param csv_gaia_path: the path to gaia csv file
+    :param csv_path: the path to gaia csv file
     :param dr_elec:
     :return: a dictionary contains as key the gaia id of the user and as value the user object
     """
     user_dr_elec_nbre = 0
     local_ad_gaia = {}
 
-    with open(csv_gaia_path, 'rb') as gaia_csv_file:
+    with open(csv_path, 'rb') as gaia_csv_file:
 
         gaia_reader = UnicodeDictReader(gaia_csv_file, dialect=csv.excel, encoding=encoding,
                                         delimiter=delimiter, skipinitialspace=True)
@@ -300,8 +304,8 @@ def build_ad_gaia(csv_gaia_path, dr_elec, encoding="utf-8", delimiter=';'):
 
         except csv.Error as cre:
             logging.error('Error in build gaia function, file %s, line %d: %s' % (
-                csv_gaia_path, gaia_reader.reader.line_num, cre))
-            exit('file %s, line %d: %s' % (csv_gaia_path, gaia_reader.reader.line_num, cre))
+                csv_path, gaia_reader.reader.line_num, cre))
+            exit('file %s, line %d: %s' % (csv_path, gaia_reader.reader.line_num, cre))
 
     logging.info('There are %s users from DR ELEC' % user_dr_elec_nbre)
 
@@ -468,33 +472,34 @@ def main():
 
     logging.info('######################## Started the user management tool ########################')
 
-    config_file = build_conf_file()
+    configObject = build_conf_file()
 
     # build ad nit dictionary
 
-    ad_nit_csv = config_file.get('ad_nit_csv')
+    ad_nit_csv = configObject.get('ad_nit_csv')
+    encoding = configObject.get('csv_encoding')
+    delimiter = configObject.get('csv_delimiter')
 
     logging.info('### Started: building NIT AD dictionary representation ###')
-    ad_nit_dict = build_ad_nit(ad_nit_csv)
+    ad_nit_dict = build_ad_nit(csv_path=ad_nit_csv, encoding=encoding, delimiter=delimiter)
     logging.info('### Ended: building NIT AD dictionary representation ###')
     logging.info("la taille de l'AD NIT est %s" % len(ad_nit_dict))
 
     # build ad nit dictionary
-    users_except_csv = config_file.get('users_except_csv')
+    users_except_csv = configObject.get('users_except_csv')
 
     logging.info('### Started: building exception users dictionary representation ###')
-
-    users_except_dict = build_ad_nit(users_except_csv)
-
+    users_except_dict = build_ad_nit(csv_path=users_except_csv, encoding=encoding, delimiter=delimiter)
     logging.info('### Ended: building exception users dictionary representation ###')
+
     logging.info("le nombre d'utilisateur en exception est %s" % len(users_except_dict))
 
     # build ad gaia dictionary
-    ad_gaia_csv = config_file.get('ad_gaia_csv')
+    ad_gaia_csv = configObject.get('ad_gaia_csv')
 
     logging.info('### Started: building AD GAIA users dictionary representation ###')
 
-    ad_gaia_dict = build_ad_gaia(ad_gaia_csv, dr_elec=config_file.get('dr_elec_list'))
+    ad_gaia_dict = build_ad_gaia(csv_path=ad_gaia_csv, dr_elec=configObject.get('dr_elec_list'), encoding=encoding, delimiter=delimiter)
     logging.info('### Ended: building AD GAIA users dictionary representation ###')
     logging.info("la taille de l'AD GAIA est %s" % len(ad_gaia_dict))
 
@@ -512,21 +517,21 @@ def main():
         user_for_deletion = build_user_to_be_deleted(ad_nit_dict=ad_nit_dict, ad_gaia_dict=ad_gaia_dict,
                                                      exception_users_dict=users_except_dict)
         logging.info("\t###There is %s users to delete" % len(user_for_deletion))
-        create_csv_file(user_list=user_for_deletion, output_filename=config_file.get('user_deletion_csv'),
-                        fieldsnames=config_file.get('csvFieldnames'))
+        create_csv_file(user_list=user_for_deletion, output_filename=configObject.get('user_deletion_csv'),
+                        fieldsnames=configObject.get('csvFieldnames'))
         logging.info("### End building users to be deleted list ###")
 
         user_for_update = build_user_to_be_updated(ad_nit_dict=ad_nit_dict, ad_gaia_dict=ad_gaia_dict,
                                                    exception_user_dict=users_except_dict)
         logging.info("\t###There is %s users to update" % len(user_for_update))
-        create_csv_file(user_list=user_for_update, output_filename=config_file.get('user_update_csv'),
-                        fieldsnames=config_file.get('csvFieldnames'))
+        create_csv_file(user_list=user_for_update, output_filename=configObject.get('user_update_csv'),
+                        fieldsnames=configObject.get('csvFieldnames'))
 
         user_for_creation = build_user_to_be_created(ad_nit_dict=ad_nit_dict, ad_gaia_dict=ad_gaia_dict,
                                                      exception_user_dict=users_except_dict)
         logging.info("\t###There is %s users to create" % len(user_for_creation))
-        create_csv_file(user_list=user_for_creation, output_filename=config_file.get('user_creation_csv'),
-                        fieldsnames=config_file.get('csvFieldnames'))
+        create_csv_file(user_list=user_for_creation, output_filename=configObject.get('user_creation_csv'),
+                        fieldsnames=configObject.get('csvFieldnames'))
 
         logging.info('######################## Finished the user management tool ########################')
 
