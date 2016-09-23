@@ -224,7 +224,7 @@ def build_conf_file():
     return l_config_object
 
 
-def build_ad_nit(csv_nit_path):
+def build_ad_nit(csv_nit_path, encoding="utf-8", delimiter=';'):
     """ build a dictionary contains the nit ad user from csv
     :param csv_nit_path:
     :return: a dictionary contains as key the gaia id of the user and as value the user object
@@ -235,10 +235,8 @@ def build_ad_nit(csv_nit_path):
     local_ad_nit = {}
     with open(csv_nit_path, 'rb') as nit_csv_file:
 
-        # nit_reader = UnicodeDictReader(nit_csv_file, dialect=csv.excel, encoding="utf-8", delimiter=';',
-        #                               skipinitialspace=True)
-
-        nit_reader = UnicodeDictReader(nit_csv_file, dialect=csv.excel, encoding="utf-8", skipinitialspace=True)
+        nit_reader = UnicodeDictReader(nit_csv_file, dialect=csv.excel, encoding=encoding,
+                                       delimiter=delimiter, skipinitialspace=True)
 
         try:
             # next(nit_reader)  # skip header row
@@ -262,7 +260,7 @@ def build_ad_nit(csv_nit_path):
     return local_ad_nit
 
 
-def build_ad_gaia(csv_gaia_path, dr_elec):
+def build_ad_gaia(csv_gaia_path, dr_elec, encoding="utf-8", delimiter=';'):
     """ build a dictionary contains the gaia ad user from csv
     :param csv_gaia_path: the path to gaia csv file
     :param dr_elec:
@@ -272,8 +270,9 @@ def build_ad_gaia(csv_gaia_path, dr_elec):
     local_ad_gaia = {}
 
     with open(csv_gaia_path, 'rb') as gaia_csv_file:
-        # delimiter=';',
-        gaia_reader = UnicodeDictReader(gaia_csv_file, dialect=csv.excel, encoding="utf-8", skipinitialspace=True)
+
+        gaia_reader = UnicodeDictReader(gaia_csv_file, dialect=csv.excel, encoding=encoding,
+                                        delimiter=delimiter, skipinitialspace=True)
         try:
 
             # optimisation in order to remove user belongs to DR elec
@@ -309,7 +308,7 @@ def build_ad_gaia(csv_gaia_path, dr_elec):
     return local_ad_gaia
 
 
-def create_csv_file(user_list, fieldsnames, output_filename):
+def create_csv_file(user_list, fieldsnames, output_filename, encoding="utf-8", delimiter=';'):
     """ Method use to create csv files
     :param user_list: a list of user's object for creation, deletion and update
     :param fieldsnames:
@@ -318,8 +317,8 @@ def create_csv_file(user_list, fieldsnames, output_filename):
     """
     with open(output_filename, 'wb') as csv_file_out:
 
-        csv_writer = UnicodeDictWriter(csv_file_out, fieldnames=fieldsnames, delimiter=';', dialect=csv.excel,
-                                       encoding="utf-8")
+        csv_writer = UnicodeDictWriter(csv_file_out, fieldnames=fieldsnames, delimiter=delimiter, dialect=csv.excel,
+                                       encoding=encoding)
 
         try:
             csv_writer.writeheader()  # write the csv header
@@ -336,7 +335,8 @@ def create_csv_file(user_list, fieldsnames, output_filename):
         except AttributeError as ae:
             logging.error('Error writing csv file with user %s, message: %s' % (str(user), ae))
 
-
+#TODO something is going wrong with "not instance of user" for exception user list
+#TODO Add starting and ended log information
 def build_user_to_be_deleted(ad_nit_dict, ad_gaia_dict, exception_users_dict):
     """ Build User to be remove from application source AD base on the following criteria
     1. User existe dans AD NIT et pas dans AD GAIA and not exist in exception list==> To be deleted
@@ -398,19 +398,21 @@ def build_user_to_be_updated(ad_nit_dict, ad_gaia_dict, exception_user_dict):
 
         # TODO: Complete the method and check user is active
 
-        # 1. User existe dans AD NIT et dans AD GAIA mais avec nom ou email different
-        if nituser_gaia_id in ad_gaia_dict and not User.string_equal(ad_gaia_dict.get(nituser_gaia_id).email,
-                                                                     nitUserObject.email):
+        # 1. User exists dans AD NIT et dans AD GAIA mais avec nom ou email different
+        if nituser_gaia_id in ad_gaia_dict and \
+                (not User.string_equal(ad_gaia_dict.get(nituser_gaia_id).email, nitUserObject.email) or
+                     not User.string_equal(ad_gaia_dict.get(nituser_gaia_id).nom, nitUserObject.nom)):
             logging.info(
-                'User %s has different property between ad_nit and ad_gaia. Going to update the user in AD NIT' % nituser_gaia_id)
+                'User %s has different Email or Name property from ad_gaia to ad_nit. Going to update the user in AD NIT' % nituser_gaia_id)
             local_user_for_update.append(ad_gaia_dict.get(nituser_gaia_id))
             continue
 
-        # 2. User existe dans AD NIT et dans User Exception mais avec nom ou email different
-        if nituser_gaia_id in exception_user_dict and not User.string_equal(
-                exception_user_dict.get(nituser_gaia_id).email, nitUserObject.email):
+        # 2. User exists dans AD NIT et dans User Exception mais avec nom ou email different
+        if nituser_gaia_id in exception_user_dict and \
+                (not User.string_equal(exception_user_dict.get(nituser_gaia_id).email, nitUserObject.email) or
+                     not User.string_equal(exception_user_dict.get(nituser_gaia_id).nom, nitUserObject.nom)):
             logging.info(
-                'User %s has different property between ad_nit and user exception. Going to update the user in AD NIT' % nituser_gaia_id)
+                'User %s has different Email or Name property from User exception list to AD_NIT. Going to update the user in AD NIT' % nituser_gaia_id)
             local_user_for_update.append(ad_gaia_dict.get(nituser_gaia_id))
             continue
 
