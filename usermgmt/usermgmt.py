@@ -61,7 +61,8 @@ class User(object):
         """ check if current user is external
         :return: True if user is external and False if not
         """
-        if (u'external', u'externe') in self.email:
+        external_list = [u'external', u'externe']
+        if any(x in self.email for x in external_list):
             return True
         else:
             return False
@@ -263,7 +264,7 @@ def build_ad_nit(csv_path, encoding="utf-8", delimiter=';'):
 
     return local_ad_nit
 
-
+# TODO: Skip tous les utilisateurs en statut 'Désactivé' ou 'Verrouillé'
 def build_ad_gaia(csv_path, dr_elec, encoding="utf-8", delimiter=';'):
     """ build a dictionary contains the gaia ad user from csv
     :param csv_path: the path to gaia csv file
@@ -339,8 +340,9 @@ def create_csv_file(user_list, fieldsnames, output_filename, encoding="utf-8", d
         except AttributeError as ae:
             logging.error('Error writing csv file with user %s, message: %s' % (str(user), ae))
 
-#TODO something is going wrong with "not instance of user" for exception user list
-#TODO Add starting and ended log information
+
+# TODO something is going wrong with "not instance of user" for exception user list
+# TODO Add starting and ended log information
 def build_user_to_be_deleted(ad_nit_dict, ad_gaia_dict, exception_users_dict):
     """ Build User to be remove from application source AD base on the following criteria
     1. User existe dans AD NIT et pas dans AD GAIA and not exist in exception list==> To be deleted
@@ -387,6 +389,7 @@ def build_user_to_be_deleted(ad_nit_dict, ad_gaia_dict, exception_users_dict):
 
 
 # TODO: Complete the method for creating csv for AD user update
+# TODO: User VJ1052, VC5070, PV1238 tracer comme tobe update et n'apparait pas dans le fichier csv update.
 def build_user_to_be_updated(ad_nit_dict, ad_gaia_dict, exception_user_dict):
     """ Build User to be remove from application source AD base on the following criteria
     1- User existe dans AD NIT et pas dans AD GAIA and not exist in exception list==> To be deleted
@@ -439,7 +442,7 @@ def build_user_to_be_created(ad_nit_dict, ad_gaia_dict, exception_user_dict):
             logging.debug(
                 'User %s from GAIA does not exit in AD NIT. Going to check if user is external' % gaia_user_id)
 
-            if not gaiaUserObject.is_external:
+            if not gaiaUserObject.is_external():
                 logging.debug('User %s is not external. Will be created' % gaia_user_id)
                 local_user_for_creation.append(gaiaUserObject)
             else:
@@ -485,7 +488,7 @@ def main():
     logging.info('### Ended: building NIT AD dictionary representation ###')
     logging.info("la taille de l'AD NIT est %s" % len(ad_nit_dict))
 
-    # build ad nit dictionary
+    # build Exception user list
     users_except_csv = configObject.get('users_except_csv')
 
     logging.info('### Started: building exception users dictionary representation ###')
@@ -499,7 +502,8 @@ def main():
 
     logging.info('### Started: building AD GAIA users dictionary representation ###')
 
-    ad_gaia_dict = build_ad_gaia(csv_path=ad_gaia_csv, dr_elec=configObject.get('dr_elec_list'), encoding=encoding, delimiter=delimiter)
+    ad_gaia_dict = build_ad_gaia(csv_path=ad_gaia_csv, dr_elec=configObject.get('dr_elec_list'), encoding=encoding,
+                                 delimiter=delimiter)
     logging.info('### Ended: building AD GAIA users dictionary representation ###')
     logging.info("la taille de l'AD GAIA est %s" % len(ad_gaia_dict))
 
