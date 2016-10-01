@@ -52,7 +52,7 @@ class User(object):
         """ check if current user is active
         :return: True if user is active and False if not
         """
-        if self.status in (u'Activé', u'A initialiser', u'Active', u'Verrouillé'):
+        if self.status in (u'Activé', u'A initialiser'):
             return True
         else:
             return False
@@ -237,7 +237,7 @@ def build_ad_nit(csv_path, encoding="utf-8", delimiter=';'):
     :return: a dictionary contains as key the gaia id of the user and as value the user object
     """
 
-    logging.debug('Load user dictionnary from %s csv file' % csv_path)
+    logging.debug('Load user dictionary from %s csv file' % csv_path)
 
     local_ad_nit = {}
     with open(csv_path, 'rb') as nit_csv_file:
@@ -246,10 +246,11 @@ def build_ad_nit(csv_path, encoding="utf-8", delimiter=';'):
                                        delimiter=delimiter, skipinitialspace=True)
 
         try:
-            # next(nit_reader)  # skip header row
+
             for row in nit_reader:
                 # skip users without GAIA
                 if not row['id_gaia']:
+                    logging.info('Skip user from AD NIT file. Reason: No ID GAIA')
                     continue
 
                 l_id_gaia = row['id_gaia'].strip() if row['id_gaia'] else row['id_gaia']
@@ -260,7 +261,7 @@ def build_ad_nit(csv_path, encoding="utf-8", delimiter=';'):
                 local_ad_nit[l_id_gaia] = User(id_gaia=l_id_gaia, nom=l_nom, prenom=l_prenom, email=l_email,
                                                status=l_status)
         except csv.Error as cre:
-            logging.error('exception raised in build_ad_nit fucntion, file %s, line %d: %s' % (
+            logging.error('exception raised in build_ad_nit, file %s, line %d: %s' % (
                 csv_path, nit_reader.reader.line_num, cre))
             exit('file %s, line %d: %s' % (csv_path, nit_reader.reader.line_num, cre))
 
@@ -373,18 +374,16 @@ def create_csv_file(user_list, fieldsnames, output_filename, encoding="utf-8", d
             logging.error('Error writing csv file with user %s, message: %s' % (str(user), ae))
 
 
-# TODO something is going wrong with "not instance of user" for exception user list
-# TODO Add starting and ended log information
 def build_user_to_be_deleted(ad_nit_dict, ad_gaia_dict, exception_users_dict):
     """ Build User to be remove from application source AD base on the following criteria
     1. User existe dans AD NIT et pas dans AD GAIA and not exist in exception list==> To be deleted
-    2. User existe dans AD NIT et pas dans AD GAIA and not exist in exception list==> To be deleted
-    3. User existe dans AD NIT et dans AD GAIA avec statut gaia "Désactivé" ou "N/A" ==> To be deleted
     :param ad_nit_dict:
     :param ad_gaia_dict:
     :param exception_users_dict:  exception user dictionary
     :return: a list of users to be deleted from the AD. Build a csv file from the list
     """
+    logging.debug('### Started: building list of deletion users ###')
+
     local_user_for_deletion = []
     for nituser_gaia_id, nitUserObject in ad_nit_dict.items():
 
@@ -393,43 +392,26 @@ def build_user_to_be_deleted(ad_nit_dict, ad_gaia_dict, exception_users_dict):
         # ==> Remove the user from ad_nit_dict object
         if nituser_gaia_id not in ad_gaia_dict and nituser_gaia_id not in exception_users_dict:
             logging.debug(
-                'User %s is neither in AD GAIA nor in Exception list. Going to remove the user' % nituser_gaia_id)
+                '%s is neither in AD GAIA nor in Exception list. Going to remove the user' % nituser_gaia_id)
             local_user_for_deletion.append(nitUserObject)
             del ad_nit_dict[nituser_gaia_id]
-            logging.debug('Delete the user %s from ad nit object' % nituser_gaia_id)
+            logging.debug('Delete the user %s from ad nit dictionary' % nituser_gaia_id)
             continue
-
-        # nit user exists in gaia ad. Go for rule 2. and 3.
-
-        gaia_user_object = ad_gaia_dict.get(nituser_gaia_id)
-
-        if isinstance(gaia_user_object, User):
-            gaia_user_object.normalize()
-        else:
-            logging.debug(nituser_gaia_id + " not instance of user")
-            continue
-
-        # 2- User exists dans AD NIT et dans AD GAIA avec statut gaia "Désactivé" ou "N/A" ==> To be deleted
-        if not gaia_user_object.is_active():
-            logging.debug('User %s is deactivated in AD GAIA. Going to remove the user \t status= %s' % (
-                nituser_gaia_id, gaia_user_object.status))
-            local_user_for_deletion.append(gaia_user_object)
-            del ad_nit_dict[nituser_gaia_id]
-            logging.debug('Delete the user %s from ad nit object' % nituser_gaia_id)
+    logging.debug('### Ended: building list of deletion users ###')
 
     return local_user_for_deletion
 
 
-# TODO: Complete the method for creating csv for AD user update
 # TODO: User VJ1052, VC5070, PV1238 tracer comme tobe update et n'apparait pas dans le fichier csv update.
+# TODO Add starting and ended log information
 def build_user_to_be_updated(ad_nit_dict, ad_gaia_dict, exception_user_dict):
-    """ Build User to be remove from application source AD base on the following criteria
-    1- User existe dans AD NIT et pas dans AD GAIA and not exist in exception list==> To be deleted
-    2- User existe dans AD NIT et dans AD GAIA avec statut gaia "Désactivé" ou "N/A" ==> To be deleted
+    """ Build User to be updated from AD GAIA to AD NIT based on the following criteria
+    1. User exists dans AD NIT et dans AD GAIA mais avec nom ou email different
+    # 2. User exists dans AD NIT et dans User Exception mais avec nom ou email different
     :param ad_nit_dict:
     :param ad_gaia_dict:
     :param exception_user_dict:  exception user dictionary
-    :return:
+    :return user_for_update: a list of user objects
     """
     local_user_for_update = []
 
@@ -441,8 +423,9 @@ def build_user_to_be_updated(ad_nit_dict, ad_gaia_dict, exception_user_dict):
         if nituser_gaia_id in ad_gaia_dict and \
                 (not User.string_equal(ad_gaia_dict.get(nituser_gaia_id).email, nitUserObject.email) or
                      not User.string_equal(ad_gaia_dict.get(nituser_gaia_id).nom, nitUserObject.nom)):
-            logging.info(
-                'User %s has different Email or Name property from ad_gaia to ad_nit. Going to update the user in AD NIT' % nituser_gaia_id)
+            logging.info('User %s has different Email or Name property from ad_gaia to ad_nit. '
+                         'Going to update the user in AD NIT' % nituser_gaia_id)
+
             local_user_for_update.append(ad_gaia_dict.get(nituser_gaia_id))
             continue
 
@@ -450,8 +433,8 @@ def build_user_to_be_updated(ad_nit_dict, ad_gaia_dict, exception_user_dict):
         if nituser_gaia_id in exception_user_dict and \
                 (not User.string_equal(exception_user_dict.get(nituser_gaia_id).email, nitUserObject.email) or
                      not User.string_equal(exception_user_dict.get(nituser_gaia_id).nom, nitUserObject.nom)):
-            logging.info(
-                'User %s has different Email or Name property from User exception list to AD_NIT. Going to update the user in AD NIT' % nituser_gaia_id)
+            logging.info('User %s has different Email or Name property from User exception list to AD_NIT. '
+                         'Going to update the user in AD NIT' % nituser_gaia_id)
             local_user_for_update.append(ad_gaia_dict.get(nituser_gaia_id))
             continue
 
@@ -497,10 +480,6 @@ def main():
     print 'Started the User managment tool'
     ad_nit_dict = {}  # just to know the return object is dictionary
     ad_gaia_dict = {}  # just to know the return object is dictionary
-    users_except_dict = {}
-    user_for_update = []
-    user_for_creation = []
-    user_for_deletion = []
 
     logging.basicConfig(filename='../log/usermgmt.log', format='%(asctime)s - %(levelname)s - %(message)s',
                         filemode='w', level=logging.DEBUG)
