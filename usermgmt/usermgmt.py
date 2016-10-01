@@ -232,6 +232,8 @@ def build_conf_file():
 def build_ad_nit(csv_path, encoding="utf-8", delimiter=';'):
     """ build a dictionary contains the nit ad user from csv
     :param csv_path:
+    :param encoding:
+    :param delimiter:
     :return: a dictionary contains as key the gaia id of the user and as value the user object
     """
 
@@ -264,11 +266,14 @@ def build_ad_nit(csv_path, encoding="utf-8", delimiter=';'):
 
     return local_ad_nit
 
-# TODO: Skip tous les utilisateurs en statut 'Désactivé' ou 'Verrouillé'
+
 def build_ad_gaia(csv_path, dr_elec, encoding="utf-8", delimiter=';'):
     """ build a dictionary contains the gaia ad user from csv
     :param csv_path: the path to gaia csv file
     :param dr_elec:
+    :param encoding:
+    :param delimiter:
+
     :return: a dictionary contains as key the gaia id of the user and as value the user object
     """
     user_dr_elec_nbre = 0
@@ -283,22 +288,49 @@ def build_ad_gaia(csv_path, dr_elec, encoding="utf-8", delimiter=';'):
             # optimisation in order to remove user belongs to DR elec
             for row in gaia_reader:
                 # skip users without GAIA
-                if not row['id_gaia']:
+                l_id_gaia = row['id_gaia']
+                if not l_id_gaia:
+                    logging.debug(
+                        'Skip user %s %s %s. Reason: No ID GAIA' % (row['prenom'], row['nom'], row['email']))
+                    continue
+                l_id_gaia = l_id_gaia.strip()
+
+                # skip users no code organisation
+                user_dr = row['code_orga']
+                if not user_dr:
+                    logging.debug('Skip user %s %s %s %s. Reason: No Code Organization' % (
+                        l_id_gaia, row['prenom'], row['nom'], row['email']))
                     continue
 
-                # skip users belong to the elec's DR
                 user_dr = row['code_orga'].strip()
+
+                # skip users belong to the elec's DR
                 if user_dr[:4] in dr_elec:
-                    logging.debug('Skip user %s %s %s %s with DR %s belongs to DR ELEC.' % (
-                        row['id_gaia'], row['prenom'], row['nom'], row['email'], row['code_orga']))
+                    logging.debug('Skip user %s %s %s %s with DR %s. Reason: belongs to DR ELEC.' % (
+                        l_id_gaia, row['prenom'], row['nom'], row['email'], user_dr))
                     user_dr_elec_nbre += 1
                     continue
 
-                l_id_gaia = row['id_gaia'].strip() if row['id_gaia'] else row['id_gaia']
+                l_status = row['Statut GAIA']
+
+                # skip users with no statut
+                if not l_status:
+                    logging.debug('Skip user %s %s %s %s. Reason: No Statut value' % (
+                        l_id_gaia, row['prenom'], row['nom'], row['email']))
+                    continue
+
+                l_status = l_status.strip()
+
+                # skip users with statut  statut 'Désactivé' or 'Verrouillé'
+                if l_status in (u'Désactivé', u'Verrouillé'):
+                    logging.debug('Skip user %s %s %s %s Statut=%s. Reason: Statut' % (
+                        l_id_gaia, row['prenom'], row['nom'], row['email'], l_status))
+                    continue
+
+                # Build gaia if none criteria match
                 l_nom = row['nom'].strip() if row['nom'] else row['nom']
                 l_prenom = row['prenom'].strip() if row['prenom'] else row['prenom']
                 l_email = row['email'].strip() if row['email'] else row['email']
-                l_status = row['Statut GAIA'].strip() if row['Statut GAIA'] else unicode("Inactive", "utf-8")
 
                 local_ad_gaia[l_id_gaia] = User(id_gaia=l_id_gaia, prenom=l_prenom, nom=l_nom, email=l_email,
                                                 status=l_status)
@@ -475,13 +507,13 @@ def main():
 
     logging.info('######################## Started the user management tool ########################')
 
-    configObject = build_conf_file()
+    config_object = build_conf_file()
 
     # build ad nit dictionary
 
-    ad_nit_csv = configObject.get('ad_nit_csv')
-    encoding = configObject.get('csv_encoding')
-    delimiter = configObject.get('csv_delimiter')
+    ad_nit_csv = config_object.get('ad_nit_csv')
+    encoding = config_object.get('csv_encoding')
+    delimiter = config_object.get('csv_delimiter')
 
     logging.info('### Started: building NIT AD dictionary representation ###')
     ad_nit_dict = build_ad_nit(csv_path=ad_nit_csv, encoding=encoding, delimiter=delimiter)
@@ -489,7 +521,7 @@ def main():
     logging.info("la taille de l'AD NIT est %s" % len(ad_nit_dict))
 
     # build Exception user list
-    users_except_csv = configObject.get('users_except_csv')
+    users_except_csv = config_object.get('users_except_csv')
 
     logging.info('### Started: building exception users dictionary representation ###')
     users_except_dict = build_ad_nit(csv_path=users_except_csv, encoding=encoding, delimiter=delimiter)
@@ -498,11 +530,11 @@ def main():
     logging.info("le nombre d'utilisateur en exception est %s" % len(users_except_dict))
 
     # build ad gaia dictionary
-    ad_gaia_csv = configObject.get('ad_gaia_csv')
+    ad_gaia_csv = config_object.get('ad_gaia_csv')
 
     logging.info('### Started: building AD GAIA users dictionary representation ###')
 
-    ad_gaia_dict = build_ad_gaia(csv_path=ad_gaia_csv, dr_elec=configObject.get('dr_elec_list'), encoding=encoding,
+    ad_gaia_dict = build_ad_gaia(csv_path=ad_gaia_csv, dr_elec=config_object.get('dr_elec_list'), encoding=encoding,
                                  delimiter=delimiter)
     logging.info('### Ended: building AD GAIA users dictionary representation ###')
     logging.info("la taille de l'AD GAIA est %s" % len(ad_gaia_dict))
@@ -521,21 +553,21 @@ def main():
         user_for_deletion = build_user_to_be_deleted(ad_nit_dict=ad_nit_dict, ad_gaia_dict=ad_gaia_dict,
                                                      exception_users_dict=users_except_dict)
         logging.info("\t###There is %s users to delete" % len(user_for_deletion))
-        create_csv_file(user_list=user_for_deletion, output_filename=configObject.get('user_deletion_csv'),
-                        fieldsnames=configObject.get('csvFieldnames'))
+        create_csv_file(user_list=user_for_deletion, output_filename=config_object.get('user_deletion_csv'),
+                        fieldsnames=config_object.get('csvFieldnames'))
         logging.info("### End building users to be deleted list ###")
 
         user_for_update = build_user_to_be_updated(ad_nit_dict=ad_nit_dict, ad_gaia_dict=ad_gaia_dict,
                                                    exception_user_dict=users_except_dict)
         logging.info("\t###There is %s users to update" % len(user_for_update))
-        create_csv_file(user_list=user_for_update, output_filename=configObject.get('user_update_csv'),
-                        fieldsnames=configObject.get('csvFieldnames'))
+        create_csv_file(user_list=user_for_update, output_filename=config_object.get('user_update_csv'),
+                        fieldsnames=config_object.get('csvFieldnames'))
 
         user_for_creation = build_user_to_be_created(ad_nit_dict=ad_nit_dict, ad_gaia_dict=ad_gaia_dict,
                                                      exception_user_dict=users_except_dict)
         logging.info("\t###There is %s users to create" % len(user_for_creation))
-        create_csv_file(user_list=user_for_creation, output_filename=configObject.get('user_creation_csv'),
-                        fieldsnames=configObject.get('csvFieldnames'))
+        create_csv_file(user_list=user_for_creation, output_filename=config_object.get('user_creation_csv'),
+                        fieldsnames=config_object.get('csvFieldnames'))
 
         logging.info('######################## Finished the user management tool ########################')
 
