@@ -43,10 +43,10 @@ class User(object):
         except AttributeError:
             return a == b
 
-    def is_same_gaia(self, user):
+    def is_same_gaia(self, new_user):
 
-        #  check if current user has same gaia as the user in parameter
-        return self.string_equal(self.id_gaia, user.id_gaia)
+        #  check if current new_user has same gaia as the new_user in parameter
+        return self.string_equal(self.id_gaia, new_user.id_gaia)
 
     def is_active(self):
         """ check if current user is active
@@ -67,14 +67,14 @@ class User(object):
         else:
             return False
 
-    def equal(self, user):
-        """ Compare current user to another from param
-        :param user: user to compare the current user with
+    def equal(self, new_user):
+        """ Compare current new_user to another from param
+        :param new_user: new_user to compare the current new_user with
         :return: TRUE if both users attributes(gaia, nom, prenom, email) are equals and false if not
         """
-        return self.string_equal(self.id_gaia, user.id_gaia) & self.string_equal(self.nom,
-                                                                                 user.nom) & self.string_equal(
-            self.prenom, user.prenom) & self.string_equal(self.email, user.email)
+        return self.string_equal(self.id_gaia, new_user.id_gaia) & self.string_equal(self.nom,
+                                                                                     new_user.nom) & self.string_equal(
+            self.prenom, new_user.prenom) & self.string_equal(self.email, new_user.email)
 
     def normalize(self):
         """ function use to normalize user if wanted
@@ -101,6 +101,33 @@ class User(object):
             self.status = self.status.capitalize()
         else:
             self.status = u'inactivé'.capitalize()
+
+    def is_email_name_changed(self, new_user):
+        """ check if current new_user's name or email change to new new_user.
+        :param new_user: the user with whom the comparison will be done
+        :return: True if new_user is change and False if not
+        """
+
+        # User has different Name and email from AD GAIA to AD NIT
+        if (not User.string_equal(self.email, new_user.email) and
+                not User.string_equal(self.nom, new_user.nom)):
+            self.logger.info(
+                'User %s has different Email and Name property from ad_gaia to ad_nit. Update requested in AD NIT' %
+                self.id_gaia)
+            return True
+
+        if not User.string_equal(self.email, new_user.email):
+            self.logger.info(
+                'User %s has different Email property from ad_gaia to ad_nit. Update requested in AD NIT' %
+                self.id_gaia)
+            return True
+
+        if not User.string_equal(self.nom, new_user.nom):
+            self.logger.info(
+                'User %s has different Name property from ad_gaia to ad_nit. Update requested in AD NIT' % self.id_gaia)
+            return True
+
+        return False
 
     def __str__(self):
         return "I'm %s %s with GAIA: %s, email: %s and Status: %s" % (
@@ -349,8 +376,10 @@ def build_ad_gaia(csv_path, dr_elec, encoding="utf-8", delimiter=';'):
 def create_csv_file(user_list, fieldsnames, output_filename, encoding="utf-8", delimiter=';'):
     """ Method use to create csv files
     :param user_list: a list of user's object for creation, deletion and update
-    :param fieldsnames:
+    :param fieldsnames: the name of the output file
     :param output_filename: the file in which write users
+    :param encoding: the encoding to be used for the output file
+    :param delimiter: the separator to be used in the csv file.
     :return: None
     """
     with open(output_filename, 'wb') as csv_file_out:
@@ -371,7 +400,7 @@ def create_csv_file(user_list, fieldsnames, output_filename, encoding="utf-8", d
             logging.error('Error writing csv file %s, line %d: %s' % (output_filename, csv_writer.writer.line_num, cwe))
 
         except AttributeError as ae:
-            logging.error('Error writing csv file with user %s, message: %s' % (str(user), ae))
+            logging.error('Error writing csv file, message: %s' % ae)
 
 
 def build_user_to_be_deleted(ad_nit_dict, ad_gaia_dict, exception_users_dict):
@@ -402,43 +431,43 @@ def build_user_to_be_deleted(ad_nit_dict, ad_gaia_dict, exception_users_dict):
     return local_user_for_deletion
 
 
-# TODO: User VJ1052, VC5070, PV1238 tracer comme tobe update et n'apparait pas dans le fichier csv update.
-# TODO Add starting and ended log information
 def build_user_to_be_updated(ad_nit_dict, ad_gaia_dict, exception_user_dict):
     """ Build User to be updated from AD GAIA to AD NIT based on the following criteria
     1. User exists dans AD NIT et dans AD GAIA mais avec nom ou email different
-    # 2. User exists dans AD NIT et dans User Exception mais avec nom ou email different
+    2. User exists dans AD NIT et dans User Exception mais avec nom ou email different
     :param ad_nit_dict:
     :param ad_gaia_dict:
     :param exception_user_dict:  exception user dictionary
     :return user_for_update: a list of user objects
     """
-    local_user_for_update = []
 
-    for nituser_gaia_id, nitUserObject in ad_nit_dict.items():
+    logging.debug('### Started: building list of Updated users ###')
+    user_for_update = []
 
-        # TODO: Complete the method and check user is active
+    for nit_user_gaia_id, nit_user_object in ad_nit_dict.items():
 
         # 1. User exists dans AD NIT et dans AD GAIA mais avec nom ou email different
-        if nituser_gaia_id in ad_gaia_dict and \
-                (not User.string_equal(ad_gaia_dict.get(nituser_gaia_id).email, nitUserObject.email) or
-                     not User.string_equal(ad_gaia_dict.get(nituser_gaia_id).nom, nitUserObject.nom)):
-            logging.info('User %s has different Email or Name property from ad_gaia to ad_nit. '
-                         'Going to update the user in AD NIT' % nituser_gaia_id)
+        if nit_user_gaia_id in ad_gaia_dict:
 
-            local_user_for_update.append(ad_gaia_dict.get(nituser_gaia_id))
-            continue
+            gaia_user_object = ad_gaia_dict.get(nit_user_gaia_id)
+
+            # User has different Name and email from AD GAIA to AD NIT
+            if nit_user_object.is_email_name_changed(gaia_user_object):
+                user_for_update.append(gaia_user_object)
+                continue
 
         # 2. User exists dans AD NIT et dans User Exception mais avec nom ou email different
-        if nituser_gaia_id in exception_user_dict and \
-                (not User.string_equal(exception_user_dict.get(nituser_gaia_id).email, nitUserObject.email) or
-                     not User.string_equal(exception_user_dict.get(nituser_gaia_id).nom, nitUserObject.nom)):
-            logging.info('User %s has different Email or Name property from User exception list to AD_NIT. '
-                         'Going to update the user in AD NIT' % nituser_gaia_id)
-            local_user_for_update.append(ad_gaia_dict.get(nituser_gaia_id))
-            continue
+        if nit_user_gaia_id in exception_user_dict:
 
-    return local_user_for_update
+            exception_user_object = exception_user_dict.get(nit_user_gaia_id)
+
+            # User has different Name and email from AD Exception to AD NIT
+            if nit_user_object.is_email_name_changed(exception_user_object):
+                user_for_update.append(exception_user_object)
+                continue
+
+    logging.debug('### Ended: building list of Updated users ###')
+    return user_for_update
 
 
 def build_user_to_be_created(ad_nit_dict, ad_gaia_dict, exception_user_dict):
@@ -448,31 +477,31 @@ def build_user_to_be_created(ad_nit_dict, ad_gaia_dict, exception_user_dict):
    :param ad_nit_dict:
    :param ad_gaia_dict:
    :param exception_user_dict:  exception user dictionary
-   :return:
+   :return user_for_creation: a list of users to be created
    """
-    local_user_for_creation = []
-    for gaia_user_id, gaiaUserObject in ad_gaia_dict.items():
+    user_for_creation = []
+    for gaia_user_id, gaia_user_object in ad_gaia_dict.items():
 
-        if gaia_user_id not in ad_nit_dict and EMAIL_REGEX.match(gaiaUserObject.email):
+        if gaia_user_id not in ad_nit_dict and EMAIL_REGEX.match(gaia_user_object.email):
             logging.debug(
-                'User %s from GAIA does not exit in AD NIT. Going to check if user is external' % gaia_user_id)
+                'User %s from GAIA does not exit in AD NIT. Is user external?' % gaia_user_id)
 
-            if not gaiaUserObject.is_external():
+            if not gaia_user_object.is_external():
                 logging.debug('User %s is not external. Will be created' % gaia_user_id)
-                local_user_for_creation.append(gaiaUserObject)
+                user_for_creation.append(gaia_user_object)
             else:
-                logging.debug('User %s is external. Will be skipped' % gaia_user_id)
+                logging.debug('Skipped user %s: is external.' % gaia_user_id)
 
             continue
 
-    # nit user exists in gaia ad. Go for rule 2. and 3.
-    for except_user_id, exceptUserObject in exception_user_dict.items():
-        if except_user_id not in ad_nit_dict and EMAIL_REGEX.match(gaiaUserObject.email):
-            logging.debug('User %s from exception does not exit in AD NIT. Going to add the user' % except_user_id)
-            local_user_for_creation.append(exceptUserObject)
+    # User exists in Exception AD and not in AD Nit.
+    for except_user_id, except_user_object in exception_user_dict.items():
+        if except_user_id not in ad_nit_dict:
+            logging.debug('User %s from Exception does not exit in AD NIT. Adding user' % except_user_id)
+            user_for_creation.append(except_user_object)
             continue
 
-    return local_user_for_creation
+    return user_for_creation
 
 
 def main():
@@ -550,7 +579,7 @@ def main():
 
         logging.info('######################## Finished the user management tool ########################')
 
-        print '\t\t/!\/!\/!\ Ended the User managment tool: please have a look on the log file /!\/!\/!\ '
+        print '\t\t/!\/!\/!\ Ended the User management tool: please have a look on the log file /!\/!\/!\ '
 
 
 if __name__ == "__main__":
