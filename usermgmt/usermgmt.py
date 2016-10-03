@@ -10,6 +10,8 @@ from sys import exit
 
 # use http://pythex.org/ to validate the regex first
 EMAIL_REGEX = re.compile("^[A-Za-z].*@.*((grdf|erdf-grdf)\.fr)$")
+GAIA_REGEX = re.compile("^[A-Za-z]{2,}[0-9]{3,}$")  # 2 letters(case insensitive)+ 4 or more digits
+# GAIA_REGEX = re.compile("^[A-Za-z]{2}[0-9]{4}$")  # Strict 2 letters(case insensitive)+ 4 digits
 
 
 class User(object):
@@ -323,6 +325,12 @@ def build_ad_gaia(csv_path, dr_elec, encoding="utf-8", delimiter=';'):
                     continue
                 l_id_gaia = l_id_gaia.strip()
 
+                # skip users with Application account
+                if not GAIA_REGEX.match(l_id_gaia):
+                    logging.debug(
+                        'Skip user %s %s %s. Reason: GAIA is for service' % (l_id_gaia, row['prenom'], row['nom']))
+                    continue
+
                 # skip users no code organisation
                 user_dr = row['code_orga']
                 if not user_dr:
@@ -482,7 +490,8 @@ def build_user_to_be_created(ad_nit_dict, ad_gaia_dict, exception_user_dict):
     user_for_creation = []
     for gaia_user_id, gaia_user_object in ad_gaia_dict.items():
 
-        if gaia_user_id not in ad_nit_dict and EMAIL_REGEX.match(gaia_user_object.email):
+        if gaia_user_id not in ad_nit_dict and EMAIL_REGEX.match(gaia_user_object.email) and \
+                GAIA_REGEX.match(gaia_user_id):
             logging.debug(
                 'User %s from GAIA does not exit in AD NIT. Is user external?' % gaia_user_id)
 
