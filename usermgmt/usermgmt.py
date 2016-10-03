@@ -13,7 +13,7 @@ EMAIL_REGEX = re.compile("^[A-Za-z].*@.*((grdf|erdf-grdf)\.fr)$")
 GAIA_REGEX = re.compile("^[A-Za-z]{2,}[0-9]{3,}$")  # 2 letters(case insensitive)+ 4 or more digits
 # GAIA_REGEX = re.compile("^[A-Za-z]{2}[0-9]{4}$")  # Strict 2 letters(case insensitive)+ 4 digits
 
-
+# TODO Detect changement de case for name or firstname exemple: DK1093 + CN2047
 class User(object):
     """
     This User object is used to hold a user identity. This model is easy for data manipulation
