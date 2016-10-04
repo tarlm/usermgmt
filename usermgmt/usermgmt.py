@@ -11,6 +11,8 @@ from sys import exit
 # use http://pythex.org/ to validate the regex first
 EMAIL_REGEX = re.compile("^[A-Za-z].*@.*((grdf|erdf-grdf)\.fr)$")
 GAIA_REGEX = re.compile("^[A-Za-z]{2,}[0-9]{3,}$")  # 2 letters(case insensitive)+ 4 or more digits
+
+
 # GAIA_REGEX = re.compile("^[A-Za-z]{2}[0-9]{4}$")  # Strict 2 letters(case insensitive)+ 4 digits
 
 # TODO Detect changement de case for name or firstname exemple: DK1093 + CN2047
@@ -39,16 +41,39 @@ class User(object):
                           (self.id_gaia, self.prenom, self.nom, self.email, self.status))
 
     @staticmethod
-    def string_equal(a, b):
+    def string_equal_ignore_case(a, b):
+        """
+        Check if both strings get in param are equals despite the case
+        :param a: first string
+        :param b: string to compare
+        :return: True if equal and false if not
+        """
         try:
             return a.upper() == b.upper()
         except AttributeError:
+            return False
+
+    @staticmethod
+    def string_equal_case_sensitive(a, b):
+        """
+        Check if both strings get in param are strict equals
+        :param a: first string
+        :param b: string to compare
+        :return: True if equal and false if not
+        """
+        try:
             return a == b
+        except AttributeError:
+            return False
 
     def is_same_gaia(self, new_user):
 
-        #  check if current new_user has same gaia as the new_user in parameter
-        return self.string_equal(self.id_gaia, new_user.id_gaia)
+        """
+        check if current new_user has same gaia as the new_user in parameter
+        :param new_user:
+        :return:
+        """
+        return User.string_equal_ignore_case(self.id_gaia, new_user.id_gaia)
 
     def is_active(self):
         """ check if current user is active
@@ -74,59 +99,58 @@ class User(object):
         :param new_user: new_user to compare the current new_user with
         :return: TRUE if both users attributes(gaia, nom, prenom, email) are equals and false if not
         """
-        return self.string_equal(self.id_gaia, new_user.id_gaia) & self.string_equal(self.nom,
-                                                                                     new_user.nom) & self.string_equal(
-            self.prenom, new_user.prenom) & self.string_equal(self.email, new_user.email)
+        return self.is_same_gaia(new_user=new_user) & User.string_equal_ignore_case(self.nom, new_user.nom) \
+               & User.string_equal_ignore_case(self.prenom, new_user.prenom) \
+               & User.string_equal_ignore_case(self.email, new_user.email)
 
     def normalize(self):
         """ function use to normalize user if wanted
         :return: None
         """
         # normalize nom
-        if self.nom:
+        try:
             self.nom = self.nom.upper()
-        else:
-            self.nom = u'anonyme'.upper()
+        except AttributeError:
+            self.nom = self.nom
 
         # normalize prenom
-        if self.prenom:
+        try:
             self.prenom = self.prenom.capitalize()
-        else:
-            self.prenom = u'anonyme'.capitalize()
+        except AttributeError:
+            self.prenom = self.prenom
 
-        # normalize email
-        if not self.email:
-            self.email = u'anonyme@example.com'
-
-        # normalize status
-        if self.status:
-            self.status = self.status.capitalize()
-        else:
-            self.status = u'inactivé'.capitalize()
-
-    def is_email_name_changed(self, new_user):
+    def is_email_name_firstname_changed(self, new_user):
         """ check if current new_user's name or email change to new new_user.
         :param new_user: the user with whom the comparison will be done
         :return: True if new_user is change and False if not
         """
 
         # User has different Name and email from AD GAIA to AD NIT
-        if (not User.string_equal(self.email, new_user.email) and
-                not User.string_equal(self.nom, new_user.nom)):
+        if (not User.string_equal_ignore_case(self.email, new_user.email) and
+                not User.string_equal_case_sensitive(self.nom, new_user.nom)):
             self.logger.info(
                 'User %s has different Email and Name property from ad_gaia to ad_nit. Update requested in AD NIT' %
                 self.id_gaia)
             return True
 
-        if not User.string_equal(self.email, new_user.email):
+        # User has different email from AD GAIA to AD NIT
+        if not User.string_equal_ignore_case(self.email, new_user.email):
             self.logger.info(
                 'User %s has different Email property from ad_gaia to ad_nit. Update requested in AD NIT' %
                 self.id_gaia)
             return True
 
-        if not User.string_equal(self.nom, new_user.nom):
+        # User has different Name from AD GAIA to AD NIT
+        if not User.string_equal_case_sensitive(self.nom, new_user.nom):
             self.logger.info(
                 'User %s has different Name property from ad_gaia to ad_nit. Update requested in AD NIT' % self.id_gaia)
+            return True
+
+        # User has different firstname from AD GAIA to AD NIT
+        if not User.string_equal_case_sensitive(self.prenom, new_user.prenom):
+            self.logger.info(
+                'User %s has different prenom property from ad_gaia to ad_nit. Update requested in AD NIT' %
+                self.id_gaia)
             return True
 
         return False
@@ -357,7 +381,7 @@ def build_ad_gaia(csv_path, dr_elec, encoding="utf-8", delimiter=';'):
 
                 l_status = l_status.strip()
 
-                # skip users with statut  statut 'Désactivé' or 'Verrouillé'
+                # skip users with statut 'Désactivé' or 'Verrouillé'
                 if l_status in (u'Désactivé', u'Verrouillé'):
                     logging.debug('Skip user %s %s %s %s Statut=%s. Reason: Statut' % (
                         l_id_gaia, row['prenom'], row['nom'], row['email'], l_status))
@@ -460,7 +484,8 @@ def build_user_to_be_updated(ad_nit_dict, ad_gaia_dict, exception_user_dict):
             gaia_user_object = ad_gaia_dict.get(nit_user_gaia_id)
 
             # User has different Name and email from AD GAIA to AD NIT
-            if nit_user_object.is_email_name_changed(gaia_user_object):
+            if nit_user_object.is_email_name_firstname_changed(gaia_user_object):
+                gaia_user_object.normalize()
                 user_for_update.append(gaia_user_object)
                 continue
 
@@ -470,7 +495,8 @@ def build_user_to_be_updated(ad_nit_dict, ad_gaia_dict, exception_user_dict):
             exception_user_object = exception_user_dict.get(nit_user_gaia_id)
 
             # User has different Name and email from AD Exception to AD NIT
-            if nit_user_object.is_email_name_changed(exception_user_object):
+            if nit_user_object.is_email_name_firstname_changed(exception_user_object):
+                exception_user_object.normalize()
                 user_for_update.append(exception_user_object)
                 continue
 
@@ -497,6 +523,7 @@ def build_user_to_be_created(ad_nit_dict, ad_gaia_dict, exception_user_dict):
 
             if not gaia_user_object.is_external():
                 logging.debug('User %s is not external. Will be created' % gaia_user_id)
+                gaia_user_object.normalize()
                 user_for_creation.append(gaia_user_object)
             else:
                 logging.debug('Skipped user %s: is external.' % gaia_user_id)
@@ -507,6 +534,7 @@ def build_user_to_be_created(ad_nit_dict, ad_gaia_dict, exception_user_dict):
     for except_user_id, except_user_object in exception_user_dict.items():
         if except_user_id not in ad_nit_dict:
             logging.debug('User %s from Exception does not exit in AD NIT. Adding user' % except_user_id)
+            except_user_object.normalize()
             user_for_creation.append(except_user_object)
             continue
 
