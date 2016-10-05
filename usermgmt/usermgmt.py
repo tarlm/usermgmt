@@ -1,5 +1,11 @@
 #!/usr/bin/python
 #  -*- coding:utf-8 -*-
+"""
+Created on 6 juil. 2016
+Support tool for users comparison and update AD NIT with changes coming from AD GAIA
+
+@author: Rodrigue ADOUHOUEKONOU
+"""
 import cStringIO
 import codecs
 import csv
@@ -10,12 +16,12 @@ from sys import exit
 
 # use http://pythex.org/ to validate the regex first
 EMAIL_REGEX = re.compile("^[A-Za-z].*@.*((grdf|erdf-grdf)\.fr)$")
-GAIA_REGEX = re.compile("^[A-Za-z]{2,}[0-9]{3,}$")  # 2 letters(case insensitive)+ 4 or more digits
+# 2 letters(case insensitive)+ 4 or more digits ==> Goal skip application service accounts
+GAIA_REGEX = re.compile("^[A-Za-z]{2,}[0-9]{3,}$")
 
 
 # GAIA_REGEX = re.compile("^[A-Za-z]{2}[0-9]{4}$")  # Strict 2 letters(case insensitive)+ 4 digits
 
-# TODO Detect changement de case for name or firstname exemple: DK1093 + CN2047
 class User(object):
     """
     This User object is used to hold a user identity. This model is easy for data manipulation
