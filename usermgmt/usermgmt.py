@@ -576,6 +576,11 @@ def main():
 
     logging.info('### Started: building exception users dictionary representation ###')
     users_except_dict = build_ad_nit(csv_path=users_except_csv, encoding=encoding, delimiter=delimiter)
+
+    logging.info('Normalizing exception users in order to avoid case typo error')
+    for user_id, exceptUserObject in users_except_dict.items():
+        exceptUserObject.normalize()
+
     logging.info('### Ended: building exception users dictionary representation ###')
 
     logging.info("le nombre d'utilisateur en exception est %s" % len(users_except_dict))
