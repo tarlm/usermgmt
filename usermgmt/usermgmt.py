@@ -255,7 +255,7 @@ def build_conf_file():
     l_config_object = {}
 
     l_config_file = ConfigParser.ConfigParser()
-    config_filenames = "../conf/user_config.cfg"
+    config_filenames = "conf/user_config.cfg"
 
     logging.debug('read the configuration parameters from: ' + config_filenames)
 
@@ -552,7 +552,7 @@ def main():
     ad_nit_dict = {}  # just to know the return object is dictionary
     ad_gaia_dict = {}  # just to know the return object is dictionary
 
-    logging.basicConfig(filename='../log/usermgmt.log', format='%(asctime)s - %(levelname)s - %(message)s',
+    logging.basicConfig(filename='log/usermgmt.log', format='%(asctime)s - %(levelname)s - %(message)s',
                         filemode='w', level=logging.DEBUG)
 
     logging.info('######################## Started the user management tool ########################')
