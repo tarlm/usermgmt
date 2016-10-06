@@ -1,6 +1,7 @@
 .idea
-README.md
-resources/*
-log/*
 *.pyc
-usermgmt/test.py
+README.md
+#resources/
+#log/*
+#test/*
+
