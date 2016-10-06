@@ -1,7 +1,7 @@
 .idea
 *.pyc
 README.md
-#resources/
-#log/*
+resources/*
+log/*
 #test/*
 
